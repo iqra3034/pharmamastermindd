@@ -1,0 +1,273 @@
+import smtplib
+import random
+import string
+import os
+import socket
+import logging
+import requests
+from email.mime.text import MIMEText
+from email.mime.multipart import MIMEMultipart
+from datetime import datetime, timedelta
+
+# Configure logging
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger(__name__)
+
+class EmailService:
+    def __init__(self):
+        self.smtp_server = os.getenv('MAIL_SERVER')
+        self.smtp_port = int(os.getenv('MAIL_PORT', '587'))
+        self.email = os.getenv('MAIL_USERNAME')
+        self.password = os.getenv('MAIL_PASSWORD')  
+        self.timeout = 10  # 10 second timeout to avoid Gunicorn worker timeout
+        self.sendgrid_api_key = os.getenv('SENDGRID_API_KEY')  # SendGrid API key for HTTP API
+        
+        # Log configuration on init (without password)
+        logger.info(f"EmailService initialized - Server: {self.smtp_server}, Port: {self.smtp_port}, User: {self.email}")  
+        if self.sendgrid_api_key:
+            logger.info("SendGrid API key configured - will use HTTP API")
+        
+        # Validate SMTP configuration
+        if not self.smtp_server or not self.email or not self.password:
+            logger.warning("Invalid SMTP configuration. Please check environment variables.")
+        
+    def generate_verification_code(self):
+        """Generate a 6-digit verification code"""
+        return ''.join(random.choices(string.digits, k=6))
+    
+    def generate_reset_token(self):
+        """Generate a secure reset token"""
+        return ''.join(random.choices(string.ascii_letters + string.digits, k=32))
+    
+    def _send_via_sendgrid(self, to_email, subject, html_content):
+        """Send email using SendGrid HTTP API (works on Railway where SMTP is blocked)"""
+        if not self.sendgrid_api_key:
+            logger.error("SendGrid API key not configured")
+            return False
+        
+        try:
+            url = "https://api.sendgrid.com/v3/mail/send"
+            headers = {
+                "Authorization": f"Bearer {self.sendgrid_api_key}",
+                "Content-Type": "application/json"
+            }
+            payload = {
+                "personalizations": [{
+                    "to": [{"email": to_email}]
+                }],
+                "from": {
+                    "email": self.email,
+                    "name": "PharmaMastermind"
+                },
+                "subject": subject,
+                "content": [{
+                    "type": "text/html",
+                    "value": html_content
+                }]
+            }
+            
+            response = requests.post(url, headers=headers, json=payload, timeout=self.timeout)
+            
+            if response.status_code == 202:
+                logger.info(f"Email sent successfully via SendGrid API to {to_email}")
+                return True
+            else:
+                logger.error(f"SendGrid API error: {response.status_code} - {response.text}")
+                return False
+        except Exception as e:
+            logger.error(f"SendGrid API request failed: {str(e)}")
+            return False
+    
+    def send_verification_email(self, to_email, user_name, verification_code):
+        """Send verification email to user"""
+        # Build HTML content
+        html_body = f"""
+        <!DOCTYPE html>
+        <html>
+        <head>
+            <style>
+                body {{ font-family: Arial, sans-serif; margin: 0; padding: 20px; background-color: #f5f5f5; }}
+                .container {{ max-width: 600px; margin: 0 auto; background: white; border-radius: 10px; overflow: hidden; box-shadow: 0 4px 6px rgba(0,0,0,0.1); }}
+                .header {{ background: linear-gradient(135deg, #138BA8, #3498DB); color: white; padding: 30px; text-align: center; }}
+                .content {{ padding: 30px; }}
+                .verification-code {{ background: #f8f9fa; border: 2px dashed #138BA8; padding: 20px; text-align: center; margin: 20px 0; border-radius: 8px; }}
+                .code {{ font-size: 32px; font-weight: bold; color: #138BA8; letter-spacing: 8px; }}
+                .footer {{ background: #f8f9fa; padding: 20px; text-align: center; color: #666; }}
+                .btn {{ background: #138BA8; color: white; padding: 12px 24px; text-decoration: none; border-radius: 5px; display: inline-block; margin: 10px 0; }}
+            </style>
+        </head>
+        <body>
+            <div class="container">
+                <div class="header">
+                    <h1>PharmaMastermind</h1>
+                    <p>Welcome to Your Health Partner</p>
+                </div>
+                <div class="content">
+                    <h2>Hello {user_name}!</h2>
+                    <p>Thank you for signing up with PharmaMastermind. To complete your registration, please verify your email address using the code below:</p>
+                    
+                    <div class="verification-code">
+                        <p>Your Verification Code:</p>
+                        <div class="code">{verification_code}</div>
+                    </div>
+                    
+                    <p>This code will expire in 10 minutes for security reasons.</p>
+                    <p>If you didn't create an account with us, please ignore this email.</p>
+                </div>
+                <div class="footer">
+                    <p> 2024 PharmaMastermind. All rights reserved.</p>
+                    <p>Dogar Pharmacy, Bucha Chatta</p>
+                </div>
+            </div>
+        </body>
+        </html>
+        """
+        
+        # Try SendGrid HTTP API first (works on Railway)
+        if self.sendgrid_api_key:
+            logger.info(f"Attempting to send verification email via SendGrid API to {to_email}")
+            if self._send_via_sendgrid(to_email, "Verify Your PharmaMastermind Account", html_body):
+                return True
+        
+        # Fallback to SMTP (works locally)
+        try:
+            msg = MIMEMultipart()
+            msg['From'] = f"Pharmamastermind <{self.email}>"
+            msg['To'] = to_email
+            msg['Subject'] = "Verify Your PharmaMastermind Account"
+            msg.attach(MIMEText(html_body, 'html'))
+            
+            logger.info(f"Attempting to send verification email via SMTP to {to_email}")
+            
+            # Use SSL for port 465, STARTTLS for port 587
+            if self.smtp_port == 465:
+                server = smtplib.SMTP_SSL(self.smtp_server, self.smtp_port, timeout=self.timeout)
+            else:
+                server = smtplib.SMTP(self.smtp_server, self.smtp_port, timeout=self.timeout)
+                server.starttls()
+            
+            logger.info(f"SMTP connection established to {self.smtp_server}:{self.smtp_port}")
+            
+            server.login(self.email, self.password)
+            logger.info(f"SMTP login successful for {self.email}")
+            
+            server.send_message(msg)
+            server.quit()
+            
+            logger.info(f"Verification email sent successfully to {to_email}")
+            return True
+            
+        except socket.timeout:
+            logger.error(f"SMTP connection timed out for {to_email} - Server: {self.smtp_server}:{self.smtp_port}")
+            return False
+        except smtplib.SMTPAuthenticationError as e:
+            logger.error(f"SMTP authentication failed for {self.email}: {str(e)}")
+            return False
+        except smtplib.SMTPException as e:
+            logger.error(f"SMTP error sending verification email: {str(e)}")
+            return False
+        except socket.gaierror as e:
+            logger.error(f"DNS resolution failed for {self.smtp_server}: {str(e)}")
+            return False
+        except Exception as e:
+            logger.error(f"Error sending verification email to {to_email}: {type(e).__name__}: {str(e)}")
+            return False
+    
+    def send_password_reset_email(self, to_email, user_name, reset_token):
+        """Send password reset email"""
+        # Build HTML content
+        html_body = f"""
+        <!DOCTYPE html>
+        <html>
+        <head>
+            <style>
+                body {{ font-family: Arial, sans-serif; margin: 0; padding: 20px; background-color: #f5f5f5; }}
+                .container {{ max-width: 600px; margin: 0 auto; background: white; border-radius: 10px; overflow: hidden; box-shadow: 0 4px 6px rgba(0,0,0,0.1); }}
+                .header {{ background: linear-gradient(135deg, #E74C3C, #F39C12); color: white; padding: 30px; text-align: center; }}
+                .content {{ padding: 30px; }}
+                .reset-code {{ background: #f8f9fa; border: 2px dashed #E74C3C; padding: 20px; text-align: center; margin: 20px 0; border-radius: 8px; }}
+                .code {{ font-size: 32px; font-weight: bold; color: #E74C3C; letter-spacing: 8px; }}
+                .footer {{ background: #f8f9fa; padding: 20px; text-align: center; color: #666; }}
+                .warning {{ background: #fff3cd; border: 1px solid #ffeaa7; padding: 15px; border-radius: 5px; margin: 15px 0; }}
+            </style>
+        </head>
+        <body>
+            <div class="container">
+                <div class="header">
+                    <h1>Password Reset</h1>
+                    <p>PharmaMastermind Security</p>
+                </div>
+                <div class="content">
+                    <h2>Hello {user_name}!</h2>
+                    <p>We received a request to reset your password for your PharmaMastermind account.</p>
+                    
+                    <p>Use the following code to reset your password:</p>
+                    
+                    <div class="reset-code">
+                        <p>Your Reset Code:</p>
+                        <div class="code">{reset_token}</div>
+                    </div>
+                    
+                    <div class="warning">
+                        <strong>Security Notice:</strong>
+                        <ul>
+                            <li>This code will expire in 10 minutes</li>
+                            <li>If you didn't request this reset, please ignore this email</li>
+                            <li>Never share this code with anyone</li>
+                        </ul>
+                    </div>
+                </div>
+                <div class="footer">
+                    <p> 2024 PharmaMastermind. All rights reserved.</p>
+                    <p>If you need help, contact us at support@pharmamaster.com</p>
+                </div>
+            </div>
+        </body>
+        </html>
+        """
+        
+        # Try SendGrid HTTP API first (works on Railway)
+        if self.sendgrid_api_key:
+            logger.info(f"Attempting to send password reset email via SendGrid API to {to_email}")
+            if self._send_via_sendgrid(to_email, "Reset Your PharmaMastermind Password", html_body):
+                return True
+        
+        # Fallback to SMTP (works locally)
+        try:
+            msg = MIMEMultipart()
+            msg['From'] = self.email
+            msg['To'] = to_email
+            msg['Subject'] = "Reset Your PharmaMastermind Password"
+            msg.attach(MIMEText(html_body, 'html'))
+            
+            logger.info(f"Attempting to send password reset email via SMTP to {to_email}")
+            
+            # Use SSL for port 465, STARTTLS for port 587
+            if self.smtp_port == 465:
+                server = smtplib.SMTP_SSL(self.smtp_server, self.smtp_port, timeout=self.timeout)
+            else:
+                server = smtplib.SMTP(self.smtp_server, self.smtp_port, timeout=self.timeout)
+                server.starttls()
+            
+            server.login(self.email, self.password)
+            server.send_message(msg)
+            server.quit()
+            
+            logger.info(f"Password reset email sent successfully to {to_email}")
+            return True
+            
+        except socket.timeout:
+            logger.error(f"SMTP connection timed out for {to_email}")
+            return False
+        except smtplib.SMTPAuthenticationError as e:
+            logger.error(f"SMTP authentication failed: {str(e)}")
+            return False
+        except smtplib.SMTPException as e:
+            logger.error(f"SMTP error sending password reset email: {str(e)}")
+            return False
+        except socket.gaierror as e:
+            logger.error(f"DNS resolution failed: {str(e)}")
+            return False
+        except Exception as e:
+            logger.error(f"Error sending password reset email: {type(e).__name__}: {str(e)}")
+            return False
