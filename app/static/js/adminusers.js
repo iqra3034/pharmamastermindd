@@ -77,7 +77,17 @@ function displayUsers(userList) {
             <td>
                 <span class="status-badge status-active">Active</span>
             </td>
-           
+            <td>
+                <button class="action-btn edit-btn" onclick="editUser(${user.id})" title="Edit User">
+                    <i class="fas fa-edit"></i>
+                </button>
+                <button class="action-btn delete-btn" onclick="openDeleteModal(${user.id})" title="Delete User">
+                    <i class="fas fa-trash"></i>
+                </button>
+                <button class="action-btn info-btn" onclick="showUserPassword(${user.id}, '${user.username}', '${user.email}')" title="Show Password Info">
+                    <i class="fas fa-key"></i>
+                </button>
+            </td>
         `;
         tableBody.appendChild(row);
     });
@@ -374,7 +384,38 @@ window.onclick = function (event) {
     }
 };
 
- document.addEventListener('DOMContentLoaded', () => {
+function showUserPassword(userId, username, email) {
+    const modal = document.createElement('div');
+    modal.className = 'modal';
+    modal.style.display = 'block';
+    modal.innerHTML = `
+        <div class="modal-content">
+            <div class="modal-header">
+                <h3>User Login Credentials</h3>
+                <span class="close" onclick="this.parentElement.parentElement.parentElement.remove()">&times;</span>
+            </div>
+            <div class="modal-body">
+                <div style="background: #f8f9fa; padding: 20px; border-radius: 8px; margin: 20px 0;">
+                    <h4 style="color: #495057; margin-bottom: 15px;">Login Information:</h4>
+                    <div><strong>User ID:</strong> <span style="color: #007bff;">#${userId}</span></div>
+                    <div><strong>Username:</strong> <span style="color: #007bff;">${username}</span></div>
+                    <div><strong>Email:</strong> <span style="color: #007bff;">${email}</span></div>
+                    <div><strong>Password:</strong> <span style="color: #6c757d;">Hidden for security</span></div>
+                    <div style="margin-top: 15px; padding: 10px; background: #fff3cd; border: 1px solid #ffeaa7; border-radius: 4px;">
+                        <i class="fas fa-shield-alt" style="color: #856404;"></i>
+                        <span style="color: #856404; margin-left: 8px;">Passwords are encrypted and cannot be viewed. Users can reset their password if needed.</span>
+                    </div>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button class="btn btn-primary" onclick="this.parentElement.parentElement.remove()">Close</button>
+            </div>
+        </div>`;
+    document.body.appendChild(modal);
+    document.body.style.overflow = 'hidden';
+}
+
+document.addEventListener('DOMContentLoaded', () => {
     const menuToggle = document.querySelector('.menu-toggle');
     const sidebar = document.querySelector('.sidebar');
     const overlay = document.createElement('div');
@@ -382,19 +423,16 @@ window.onclick = function (event) {
     document.body.appendChild(overlay);
 
     menuToggle.addEventListener('click', () => {
-      sidebar.classList.toggle('active');
-      overlay.classList.toggle('active');
+        sidebar.classList.toggle('active');
+        overlay.classList.toggle('active');
     });
 
     overlay.addEventListener('click', () => {
-      sidebar.classList.remove('active');
-      overlay.classList.remove('active');
+        sidebar.classList.remove('active');
+        overlay.classList.remove('active');
     });
-  });
-
-const sidebar = document.querySelector('.sidebar');
-const main = document.querySelector('.main-content');
+});
 
 document.querySelector('.toggle-btn').addEventListener('click', () => {
-  sidebar.classList.toggle('collapsed');
+    document.querySelector('.sidebar').classList.toggle('collapsed');
 });

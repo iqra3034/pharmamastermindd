@@ -1757,6 +1757,36 @@ def add_employee():
     try:
         print("Received data:", data)
         cursor = mysql.connection.cursor()
+        
+        # Split name into first_name and last_name
+        name_parts = data.get('name', '').split(' ', 1)
+        first_name = name_parts[0]
+        last_name = name_parts[1] if len(name_parts) > 1 else ''
+        
+        # Default password for new employees
+        default_password = 'employee123'
+        hashed_password = bcrypt.hashpw(default_password.encode('utf-8'), bcrypt.gensalt()).decode('utf-8')
+        
+        # Check if user already exists in users table
+        cursor.execute("SELECT id FROM users WHERE email = %s", (data.get('email'),))
+        existing_user = cursor.fetchone()
+        
+        if not existing_user:
+            # Insert into users table for login
+            cursor.execute("""
+                INSERT INTO users 
+                (username, first_name, last_name, email, password, role) 
+                VALUES (%s, %s, %s, %s, %s, %s)
+            """, (
+                data.get('id'),  # username = employee_id
+                first_name,
+                last_name,
+                data.get('email'),
+                hashed_password,
+                'Employee'
+            ))
+        
+        # Insert into employees table for detailed info
         cursor.execute("""
             INSERT INTO employees 
             (employee_id, name, email, phone, cnic, emergency, role, salary) 
@@ -1768,18 +1798,20 @@ def add_employee():
             data.get('phone'),
             data.get('cnic'),
             data.get('emergency_contact'),
-            data.get('role'),
+            data.get('role', 'Employee'),
             data.get('salary')
         ))
+        
         mysql.connection.commit()
         cursor.close()
         return jsonify({
             'status': 'success',
-            'message': 'Employee added successfully!'
+            'message': 'Employee added successfully! Default password: employee123'
         }), 200
 
     except Exception as e:
         print("Error while adding employee:", e)
+        mysql.connection.rollback()
         return jsonify({
             'status': 'error',
             'message': f'Error: {str(e)}'
@@ -1797,14 +1829,17 @@ def get_employees():
         rows = cur.fetchall()
         col_names = [desc[0] for desc in cur.description]
         employees = [dict(zip(col_names, row)) for row in rows]
+        # Mark source as 'added' for employees from employees table
+        for emp in employees:
+            emp['source'] = 'added'
 
         # Get users with role 'Employee' from users table (signup users)
-        cur.execute("SELECT id, username, first_name, last_name, email, role FROM users WHERE role = 'Employee'")
+        cur.execute("SELECT id, username, first_name, last_name, email, role, password FROM users WHERE role = 'Employee'")
         user_rows = cur.fetchall()
 
         # Convert users to employee format
         for user in user_rows:
-            user_id, username, first_name, last_name, email, role = user
+            user_id, username, first_name, last_name, email, role, password = user
             # Check if this user is already in employees table (by email or username as employee_id)
             exists = any(emp.get('email') == email or emp.get('employee_id') == username for emp in employees)
             if not exists:
@@ -1817,7 +1852,8 @@ def get_employees():
                     'emergency': '-',
                     'role': role,
                     'salary': 0,
-                    'source': 'signup'  # Mark as signup user
+                    'source': 'signup',  # Mark as signup user
+                    'has_password': True  # Signup users have their own password
                 })
 
         cur.close()
@@ -1832,17 +1868,85 @@ def update_employee(emp_id):
     try:
         data = request.json
         cur = mysql.connection.cursor()
-        query = '''
-            UPDATE employees
-            SET name=%s, email=%s, phone=%s, cnic=%s,
-                emergency=%s, role=%s, salary=%s
-            WHERE employee_id=%s
-        '''
-        values = (
-            data['name'], data['email'], data['phone'], data['cnic'],
-            data['emergency_contact'], data['role'], data['salary'], emp_id
-        )
-        cur.execute(query, values)
+        
+        # First check if employee exists in employees table
+        cur.execute("SELECT employee_id FROM employees WHERE employee_id = %s", (emp_id,))
+        in_employees_table = cur.fetchone() is not None
+        
+        if in_employees_table:
+            # Update in employees table
+            query = '''
+                UPDATE employees
+                SET name=%s, email=%s, phone=%s, cnic=%s,
+                    emergency=%s, role=%s, salary=%s
+                WHERE employee_id=%s
+            '''
+            values = (
+                data['name'], data['email'], data['phone'], data['cnic'],
+                data['emergency_contact'], data['role'], data['salary'], emp_id
+            )
+            cur.execute(query, values)
+        else:
+            # Check if employee is in users table (signup employee)
+            cur.execute("SELECT id FROM users WHERE username = %s AND role = 'Employee'", (emp_id,))
+            in_users_table = cur.fetchone() is not None
+            
+            if in_users_table:
+                # Update in users table
+                name_parts = data['name'].split(' ', 1)
+                first_name = name_parts[0]
+                last_name = name_parts[1] if len(name_parts) > 1 else ''
+                
+                query = '''
+                    UPDATE users
+                    SET username=%s, first_name=%s, last_name=%s, email=%s
+                    WHERE username=%s AND role='Employee'
+                '''
+                values = (
+                    data.get('id', emp_id),  # new username (employee_id)
+                    first_name,
+                    last_name,
+                    data['email'],
+                    emp_id
+                )
+                cur.execute(query, values)
+                
+                # Also insert into employees table for full details
+                try:
+                    cur.execute('''
+                        INSERT INTO employees 
+                        (employee_id, name, email, phone, cnic, emergency, role, salary)
+                        VALUES (%s, %s, %s, %s, %s, %s, %s, %s)
+                    ''', (
+                        data.get('id', emp_id),
+                        data['name'],
+                        data['email'],
+                        data['phone'],
+                        data['cnic'],
+                        data['emergency_contact'],
+                        data['role'],
+                        data['salary']
+                    ))
+                except:
+                    pass  # Ignore if already exists
+            else:
+                # Employee not found in either table - create new in employees table
+                cur.execute('''
+                    INSERT INTO employees 
+                    (employee_id, name, email, phone, cnic, emergency, role, salary)
+                    VALUES (%s, %s, %s, %s, %s, %s, %s, %s)
+                ''', (
+                    emp_id,
+                    data['name'],
+                    data['email'],
+                    data['phone'],
+                    data['cnic'],
+                    data['emergency_contact'],
+                    data['role'],
+                    data['salary']
+                ))
+        
+        
         mysql.connection.commit()
         cur.close()
         return jsonify({'status': 'success', 'message': 'Employee updated successfully'})
