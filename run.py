@@ -402,6 +402,7 @@ def signsin():
     data = request.get_json()
     email = data.get("email").strip()
     password = data.get("password").strip()
+    selected_role = data.get("selectedRole", "").strip().lower()  # Get the role user selected on home page
 
     try:
         cur = mysql.connection.cursor()
@@ -411,6 +412,15 @@ def signsin():
 
         if user:
             stored_password = user[5]
+            user_role = user[6].lower()  # User's actual role in database
+            
+            # Check if user selected the correct role
+            if selected_role and user_role != selected_role:
+                return jsonify({
+                    "success": False, 
+                    "message": f"This account is registered as '{user_role}'. Please login from the '{user_role.capitalize()}' option."
+                })
+            
             if bcrypt.checkpw(password.encode('utf-8'), stored_password.encode('utf-8')):
                 session.permanent = True
                 session['role'] = user[6]
@@ -876,6 +886,8 @@ def get_products():
         # Get pagination parameters from query string
         page = request.args.get('page', 1, type=int)
         per_page = request.args.get('per_page', 20, type=int)
+        search = request.args.get('search', '', type=str)
+        category = request.args.get('category', '', type=str)
         
         # Validate pagination parameters
         if page < 1:
@@ -888,19 +900,43 @@ def get_products():
         
         cur = mysql.connection.cursor()
         
-        # Get total count of products
-        cur.execute("SELECT COUNT(*) FROM products WHERE stock_quantity > 0")
-        total_products = cur.fetchone()[0]
-        
-        # Get paginated products
-        cur.execute("""
+        # Build query with search and category filters
+        base_query = """
             SELECT product_id, product_name, brand, price, 
                 stock_quantity, category, expiry_date, image_path
             FROM products
             WHERE stock_quantity > 0
-            ORDER BY product_name
-            LIMIT %s OFFSET %s
-        """, (per_page, offset))
+        """
+        count_query = "SELECT COUNT(*) FROM products WHERE stock_quantity > 0"
+        params = []
+        count_params = []
+        
+        # Add search filter
+        if search:
+            search_filter = " AND (product_name LIKE %s OR product_id LIKE %s OR brand LIKE %s)"
+            base_query += search_filter
+            count_query += search_filter
+            search_param = f"%{search}%"
+            params.extend([search_param, search_param, search_param])
+            count_params.extend([search_param, search_param, search_param])
+        
+        # Add category filter
+        if category and category != 'All Categories':
+            category_filter = " AND category = %s"
+            base_query += category_filter
+            count_query += category_filter
+            params.append(category)
+            count_params.append(category)
+        
+        # Get total count with filters
+        cur.execute(count_query, count_params if count_params else None)
+        total_products = cur.fetchone()[0]
+        
+        # Get paginated products with filters
+        final_query = base_query + " ORDER BY product_name LIMIT %s OFFSET %s"
+        params.extend([per_page, offset])
+        
+        cur.execute(final_query, params)
         
         rows = cur.fetchall()
         column_names = [desc[0] for desc in cur.description]

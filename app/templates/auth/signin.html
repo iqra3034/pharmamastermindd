@@ -314,6 +314,7 @@
 
       let email = emailInput.value.trim();
       let password = passwordInput.value.trim();
+      let selectedRole = sessionStorage.getItem('selectedRole');
 
       if (emailError.textContent || passwordError.textContent) {
         return;
@@ -323,7 +324,7 @@
         method: "POST",
         headers: { "Content-Type": "application/json" },
         credentials: "include",
-        body: JSON.stringify({ email, password })
+        body: JSON.stringify({ email, password, selectedRole })
       })
         .then(response => response.json())
         .then(data => {
