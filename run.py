@@ -962,6 +962,19 @@ def get_products():
         return jsonify({"error": f"MySQL Error: {str(err)}"}), 500
 
 
+@app.route('/api/categories', methods=['GET'])
+def get_categories():
+    try:
+        cur = mysql.connection.cursor()
+        cur.execute("SELECT DISTINCT category FROM products WHERE category IS NOT NULL AND category != '' ORDER BY category")
+        rows = cur.fetchall()
+        cur.close()
+        
+        categories = [row[0] for row in rows]
+        return jsonify({"categories": categories})
+    except Exception as err:
+        return jsonify({"error": f"MySQL Error: {str(err)}"}), 500
+
 
 @app.route('/api/products', methods=['POST'])
 def add_product():
@@ -1860,37 +1873,60 @@ def get_employees():
     try:
         cur = mysql.connection.cursor()
 
+        # Get users with role 'Employee' from users table (signup users) FIRST
+        cur.execute("SELECT id, username, first_name, last_name, email, role FROM users WHERE role = 'Employee'")
+        user_rows = cur.fetchall()
+        
+        # Create a map of signup users by email and username
+        signup_users = {}
+        for user in user_rows:
+            user_id, username, first_name, last_name, email, role = user
+            signup_users[email.lower()] = {
+                'employee_id': username,
+                'name': f"{first_name} {last_name}",
+                'email': email,
+                'source': 'signup'
+            }
+            signup_users[username.lower()] = {'email': email}  # For username lookup
+
         # Get employees from employees table
         cur.execute('SELECT * FROM employees')
         rows = cur.fetchall()
         col_names = [desc[0] for desc in cur.description]
-        employees = [dict(zip(col_names, row)) for row in rows]
-        # Mark source as 'added' for employees from employees table
-        for emp in employees:
-            emp['source'] = 'added'
+        employees = []
+        
+        for row in rows:
+            emp = dict(zip(col_names, row))
+            # Check if this employee also exists in signup users (by email or employee_id)
+            email_lower = emp.get('email', '').lower()
+            emp_id_lower = emp.get('employee_id', '').lower()
+            
+            if email_lower in signup_users or emp_id_lower in signup_users:
+                # Employee signed up after being added - they have their own password
+                emp['source'] = 'signup'
+            else:
+                emp['source'] = 'added'
+            employees.append(emp)
 
-        # Get users with role 'Employee' from users table (signup users)
-        cur.execute("SELECT id, username, first_name, last_name, email, role, password FROM users WHERE role = 'Employee'")
-        user_rows = cur.fetchall()
-
-        # Convert users to employee format
-        for user in user_rows:
-            user_id, username, first_name, last_name, email, role, password = user
-            # Check if this user is already in employees table (by email or username as employee_id)
-            exists = any(emp.get('email') == email or emp.get('employee_id') == username for emp in employees)
-            if not exists:
-                employees.append({
-                    'employee_id': username,
-                    'name': f"{first_name} {last_name}",
-                    'email': email,
-                    'phone': '-',
-                    'cnic': '-',
-                    'emergency': '-',
-                    'role': role,
-                    'salary': 0,
-                    'source': 'signup',  # Mark as signup user
-                    'has_password': True  # Signup users have their own password
-                })
+        # Add signup users that are NOT in employees table
+        for email_lower, user_data in signup_users.items():
+            if isinstance(user_data.get('employee_id'), str):  # Full user data, not just lookup
+                # Check if already in employees list
+                exists = any(emp.get('email', '').lower() == email_lower or 
+                            emp.get('employee_id', '').lower() == user_data['employee_id'].lower() 
+                            for emp in employees)
+                if not exists:
+                    employees.append({
+                        'employee_id': user_data['employee_id'],
+                        'name': user_data['name'],
+                        'email': user_data['email'],
+                        'phone': '-',
+                        'cnic': '-',
+                        'emergency': '-',
+                        'role': 'Employee',
+                        'salary': 0,
+                        'source': 'signup'
+                    })
 
         cur.close()
         return jsonify(employees)

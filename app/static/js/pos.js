@@ -6,6 +6,7 @@ let searchTimeout = null;
 
 document.addEventListener("DOMContentLoaded", () => {
     fetchProducts(1);
+    fetchCategories();
 
     // Mobile menu toggle
     const toggleBtn = document.querySelector('.menu-toggle');
@@ -202,6 +203,24 @@ function goToPage(page) {
     fetchProducts(page);
     // Scroll to top of products section
     document.querySelector(".table-responsive").scrollIntoView({ behavior: "smooth", block: "start" });
+}
+
+function fetchCategories() {
+    fetch('/api/categories')
+        .then(response => response.json())
+        .then(data => {
+            const categorySelect = document.getElementById('categorySelect');
+            if (categorySelect && data.categories) {
+                categorySelect.innerHTML = '<option>All Categories</option>';
+                data.categories.forEach(category => {
+                    const option = document.createElement('option');
+                    option.value = category;
+                    option.textContent = category;
+                    categorySelect.appendChild(option);
+                });
+            }
+        })
+        .catch(error => console.error('Error fetching categories:', error));
 }
 
 function displayProducts(products) {

@@ -6,6 +6,7 @@ let searchTimeout = null;
 
 document.addEventListener("DOMContentLoaded", () => {
     fetchProducts(1);
+    fetchCategories();
     updateCartDisplay();
     
     // Add event listeners after DOM is ready
@@ -31,6 +32,24 @@ document.addEventListener("DOMContentLoaded", () => {
         });
     }
 });
+
+function fetchCategories() {
+    fetch('/api/categories')
+        .then(response => response.json())
+        .then(data => {
+            const categorySelect = document.getElementById('categorySelect');
+            if (categorySelect && data.categories) {
+                categorySelect.innerHTML = '<option>All Categories</option>';
+                data.categories.forEach(category => {
+                    const option = document.createElement('option');
+                    option.value = category;
+                    option.textContent = category;
+                    categorySelect.appendChild(option);
+                });
+            }
+        })
+        .catch(error => console.error('Error fetching categories:', error));
+}
 
 function fetchProducts(page = 1, searchTerm = '') {
     const perPage = 20; // Products per page
