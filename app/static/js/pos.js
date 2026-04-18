@@ -2,9 +2,11 @@ let products = [];
 let cart = [];
 let currentPage = 1;
 let paginationData = null;
+let searchTimeout = null;
 
 document.addEventListener("DOMContentLoaded", () => {
     fetchProducts(1);
+    fetchCategories();
 
     // Mobile menu toggle
     const toggleBtn = document.querySelector('.menu-toggle');
@@ -28,33 +30,21 @@ document.addEventListener("DOMContentLoaded", () => {
     document.getElementById("paidAmount").addEventListener("input", updateBillingSummary);
 
     
-    document.getElementById("searchInput").addEventListener("keyup", function () {
-        const filter = this.value.toLowerCase();
-
+    // Instant search with debounce - searches across ALL products in database
+    document.getElementById("searchInput").addEventListener("input", function () {
+        clearTimeout(searchTimeout);
+        const searchTerm = this.value.trim();
         
-        const filteredProducts = products.filter(product =>
-            product.product_name.toLowerCase().includes(filter) ||
-            product.product_id.toString().includes(filter)
-        );
-
-        
-        displayProducts(filteredProducts);
+        searchTimeout = setTimeout(() => {
+            fetchProducts(1, searchTerm);
+        }, 300); // 300ms debounce
     });
 
     document.getElementById("categorySelect").addEventListener("change", function () {
-        const category = this.value;
-
-        if (category === "All Categories") {
-            displayProducts(products);
-        } else {
-            const filteredProducts = products.filter(product =>
-                product.category && product.category.toLowerCase() === category.toLowerCase()
-            );
-            displayProducts(filteredProducts);
-        }
+        const searchTerm = document.getElementById("searchInput").value.trim();
+        fetchProducts(1, searchTerm);
     });
 });
-
 
 function showPopup(message, type = "success") {
     const existing = document.getElementById("popupMessage");
@@ -88,9 +78,19 @@ function showPopup(message, type = "success") {
     }, 5000);
 }
 
-function fetchProducts(page = 1) {
+function fetchProducts(page = 1, search = '') {
     const perPage = 15; // Products per page for POS
-    fetch(`/api/products?page=${page}&per_page=${perPage}`)
+    const category = document.getElementById("categorySelect")?.value || '';
+    
+    let url = `/api/products?page=${page}&per_page=${perPage}`;
+    if (search) {
+        url += `&search=${encodeURIComponent(search)}`;
+    }
+    if (category && category !== 'All Categories') {
+        url += `&category=${encodeURIComponent(category)}`;
+    }
+    
+    fetch(url)
         .then(res => res.json())
         .then(data => {
             if (data.products) {
@@ -203,6 +203,24 @@ function goToPage(page) {
     fetchProducts(page);
     // Scroll to top of products section
     document.querySelector(".table-responsive").scrollIntoView({ behavior: "smooth", block: "start" });
+}
+
+function fetchCategories() {
+    fetch('/api/categories')
+        .then(response => response.json())
+        .then(data => {
+            const categorySelect = document.getElementById('categorySelect');
+            if (categorySelect && data.categories) {
+                categorySelect.innerHTML = '<option>All Categories</option>';
+                data.categories.forEach(category => {
+                    const option = document.createElement('option');
+                    option.value = category;
+                    option.textContent = category;
+                    categorySelect.appendChild(option);
+                });
+            }
+        })
+        .catch(error => console.error('Error fetching categories:', error));
 }
 
 function displayProducts(products) {

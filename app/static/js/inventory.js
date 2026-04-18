@@ -1,17 +1,27 @@
 document.addEventListener("DOMContentLoaded", () => {
     console.log("DOM Loaded, Fetching Products...");
     fetchProducts(1);
+    fetchCategories();
     setupEventListeners();
 });
 
 let products = [];
 let currentPage = 1;
 let paginationData = null;
+let searchTimeout = null;
 
 function setupEventListeners() {
    
-    document.getElementById('searchInput').addEventListener('input', filterProducts);
-    document.getElementById('categoryFilter').addEventListener('change', filterProducts);
+    // Instant search with debounce - searches across ALL products in database
+    document.getElementById('searchInput').addEventListener('input', function() {
+        clearTimeout(searchTimeout);
+        searchTimeout = setTimeout(() => {
+            fetchProducts(1);
+        }, 300); // 300ms debounce
+    });
+    document.getElementById('categoryFilter').addEventListener('change', function() {
+        fetchProducts(1);
+    });
 
 
     document.getElementById('uploadArea').addEventListener('click', () => {
@@ -24,9 +34,39 @@ function setupEventListeners() {
     document.getElementById('addProductForm').addEventListener('submit', handleFormSubmit);
 }
 
+function fetchCategories() {
+    fetch('/api/categories')
+        .then(response => response.json())
+        .then(data => {
+            const categoryFilter = document.getElementById('categoryFilter');
+            if (categoryFilter && data.categories) {
+                // Keep "All Categories" option and add database categories
+                categoryFilter.innerHTML = '<option value="all">All Categories</option>';
+                data.categories.forEach(category => {
+                    const option = document.createElement('option');
+                    option.value = category;
+                    option.textContent = category;
+                    categoryFilter.appendChild(option);
+                });
+            }
+        })
+        .catch(error => console.error('Error fetching categories:', error));
+}
+
 function fetchProducts(page = 1) {
     const perPage = 20; // Products per page for inventory
-    fetch(`/api/products?page=${page}&per_page=${perPage}`)
+    const searchTerm = document.getElementById('searchInput')?.value.trim() || '';
+    const categoryFilter = document.getElementById('categoryFilter')?.value || '';
+    
+    let url = `/api/products?page=${page}&per_page=${perPage}`;
+    if (searchTerm) {
+        url += `&search=${encodeURIComponent(searchTerm)}`;
+    }
+    if (categoryFilter && categoryFilter !== 'all') {
+        url += `&category=${encodeURIComponent(categoryFilter)}`;
+    }
+    
+    fetch(url)
         .then(response => {
             if (!response.ok) {
                 throw new Error(`HTTP error! Status: ${response.status}`);
@@ -207,23 +247,6 @@ function inventoryGoToPage(page) {
     fetchProducts(page);
     // Scroll to top
     document.querySelector(".table-container").scrollIntoView({ behavior: "smooth", block: "start" });
-}
-
-function filterProducts() {
-    const searchTerm = document.getElementById('searchInput').value.toLowerCase();
-    const categoryFilter = document.getElementById('categoryFilter').value;
-
-    let filtered = products.filter(product => {
-        const matchesSearch = product.product_name.toLowerCase().includes(searchTerm) ||
-            product.product_id.toString().includes(searchTerm);
-
-        const matchesCategory = categoryFilter === 'all' ||
-            product.category.toLowerCase() === categoryFilter.toLowerCase();
-
-        return matchesSearch && matchesCategory;
-    });
-
-    renderProducts(filtered);
 }
 
 function formatDate(dateString) {

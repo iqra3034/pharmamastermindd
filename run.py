@@ -30,10 +30,10 @@ CORS(app, supports_credentials=True)
 
 stripe.api_key = 'sk_test_51RvFpAFnsPUQVISnTuNYVEFQlPbjSU8HBH3sxC5nFLLIBnnuJxs9cggYNENqUKD9PWdD4jPihDlkHeMTJD5l7PxF00Arox9DUH'  
 
-app.config['MYSQL_HOST'] = 'junction.proxy.rlwy.net'
-app.config['MYSQL_PORT'] = 55275
+app.config['MYSQL_HOST'] = 'metro.proxy.rlwy.net'
+app.config['MYSQL_PORT'] = 26378
 app.config['MYSQL_USER'] = 'root'
-app.config['MYSQL_PASSWORD'] = 'SGyckJNxStTohqGxHjQIyELVqGIbDaPp'
+app.config['MYSQL_PASSWORD'] = 'WdEMflbEssriKyIakYJSNIsxvuREaoNa'
 app.config['MYSQL_DB'] = 'railway'
 
 mysql = MySQL(app)
@@ -402,6 +402,7 @@ def signsin():
     data = request.get_json()
     email = data.get("email").strip()
     password = data.get("password").strip()
+    selected_role = data.get("selectedRole", "").strip().lower()  # Get the role user selected on home page
 
     try:
         cur = mysql.connection.cursor()
@@ -411,6 +412,15 @@ def signsin():
 
         if user:
             stored_password = user[5]
+            user_role = user[6].lower()  # User's actual role in database
+            
+            # Check if user selected the correct role
+            if selected_role and user_role != selected_role:
+                return jsonify({
+                    "success": False, 
+                    "message": f"This account is registered as '{user_role}'. Please login from the '{user_role.capitalize()}' option."
+                })
+            
             if bcrypt.checkpw(password.encode('utf-8'), stored_password.encode('utf-8')):
                 session.permanent = True
                 session['role'] = user[6]
@@ -876,6 +886,8 @@ def get_products():
         # Get pagination parameters from query string
         page = request.args.get('page', 1, type=int)
         per_page = request.args.get('per_page', 20, type=int)
+        search = request.args.get('search', '', type=str)
+        category = request.args.get('category', '', type=str)
         
         # Validate pagination parameters
         if page < 1:
@@ -888,19 +900,43 @@ def get_products():
         
         cur = mysql.connection.cursor()
         
-        # Get total count of products
-        cur.execute("SELECT COUNT(*) FROM products WHERE stock_quantity > 0")
-        total_products = cur.fetchone()[0]
-        
-        # Get paginated products
-        cur.execute("""
+        # Build query with search and category filters
+        base_query = """
             SELECT product_id, product_name, brand, price, 
                 stock_quantity, category, expiry_date, image_path
             FROM products
             WHERE stock_quantity > 0
-            ORDER BY product_name
-            LIMIT %s OFFSET %s
-        """, (per_page, offset))
+        """
+        count_query = "SELECT COUNT(*) FROM products WHERE stock_quantity > 0"
+        params = []
+        count_params = []
+        
+        # Add search filter
+        if search:
+            search_filter = " AND (product_name LIKE %s OR product_id LIKE %s OR brand LIKE %s)"
+            base_query += search_filter
+            count_query += search_filter
+            search_param = f"%{search}%"
+            params.extend([search_param, search_param, search_param])
+            count_params.extend([search_param, search_param, search_param])
+        
+        # Add category filter
+        if category and category != 'All Categories':
+            category_filter = " AND category = %s"
+            base_query += category_filter
+            count_query += category_filter
+            params.append(category)
+            count_params.append(category)
+        
+        # Get total count with filters
+        cur.execute(count_query, count_params if count_params else None)
+        total_products = cur.fetchone()[0]
+        
+        # Get paginated products with filters
+        final_query = base_query + " ORDER BY product_name LIMIT %s OFFSET %s"
+        params.extend([per_page, offset])
+        
+        cur.execute(final_query, params)
         
         rows = cur.fetchall()
         column_names = [desc[0] for desc in cur.description]
@@ -925,6 +961,19 @@ def get_products():
     except Exception as err:
         return jsonify({"error": f"MySQL Error: {str(err)}"}), 500
 
+
+@app.route('/api/categories', methods=['GET'])
+def get_categories():
+    try:
+        cur = mysql.connection.cursor()
+        cur.execute("SELECT DISTINCT category FROM products WHERE category IS NOT NULL AND category != '' ORDER BY category")
+        rows = cur.fetchall()
+        cur.close()
+        
+        categories = [row[0] for row in rows]
+        return jsonify({"categories": categories})
+    except Exception as err:
+        return jsonify({"error": f"MySQL Error: {str(err)}"}), 500
 
 
 @app.route('/api/products', methods=['POST'])
@@ -1757,6 +1806,36 @@ def add_employee():
     try:
         print("Received data:", data)
         cursor = mysql.connection.cursor()
+        
+        # Split name into first_name and last_name
+        name_parts = data.get('name', '').split(' ', 1)
+        first_name = name_parts[0]
+        last_name = name_parts[1] if len(name_parts) > 1 else ''
+        
+        # Default password for new employees
+        default_password = 'employee123'
+        hashed_password = bcrypt.hashpw(default_password.encode('utf-8'), bcrypt.gensalt()).decode('utf-8')
+        
+        # Check if user already exists in users table
+        cursor.execute("SELECT id FROM users WHERE email = %s", (data.get('email'),))
+        existing_user = cursor.fetchone()
+        
+        if not existing_user:
+            # Insert into users table for login
+            cursor.execute("""
+                INSERT INTO users 
+                (username, first_name, last_name, email, password, role) 
+                VALUES (%s, %s, %s, %s, %s, %s)
+            """, (
+                data.get('id'),  # username = employee_id
+                first_name,
+                last_name,
+                data.get('email'),
+                hashed_password,
+                'Employee'
+            ))
+        
+        # Insert into employees table for detailed info
         cursor.execute("""
             INSERT INTO employees 
             (employee_id, name, email, phone, cnic, emergency, role, salary) 
@@ -1768,18 +1847,20 @@ def add_employee():
             data.get('phone'),
             data.get('cnic'),
             data.get('emergency_contact'),
-            data.get('role'),
+            data.get('role', 'Employee'),
             data.get('salary')
         ))
+        
         mysql.connection.commit()
         cursor.close()
         return jsonify({
             'status': 'success',
-            'message': 'Employee added successfully!'
+            'message': 'Employee added successfully! Default password: employee123'
         }), 200
 
     except Exception as e:
         print("Error while adding employee:", e)
+        mysql.connection.rollback()
         return jsonify({
             'status': 'error',
             'message': f'Error: {str(e)}'
@@ -1792,33 +1873,60 @@ def get_employees():
     try:
         cur = mysql.connection.cursor()
 
+        # Get users with role 'Employee' from users table (signup users) FIRST
+        cur.execute("SELECT id, username, first_name, last_name, email, role FROM users WHERE role = 'Employee'")
+        user_rows = cur.fetchall()
+        
+        # Create a map of signup users by email and username
+        signup_users = {}
+        for user in user_rows:
+            user_id, username, first_name, last_name, email, role = user
+            signup_users[email.lower()] = {
+                'employee_id': username,
+                'name': f"{first_name} {last_name}",
+                'email': email,
+                'source': 'signup'
+            }
+            signup_users[username.lower()] = {'email': email}  # For username lookup
+
         # Get employees from employees table
         cur.execute('SELECT * FROM employees')
         rows = cur.fetchall()
         col_names = [desc[0] for desc in cur.description]
-        employees = [dict(zip(col_names, row)) for row in rows]
+        employees = []
+        
+        for row in rows:
+            emp = dict(zip(col_names, row))
+            # Check if this employee also exists in signup users (by email or employee_id)
+            email_lower = emp.get('email', '').lower()
+            emp_id_lower = emp.get('employee_id', '').lower()
+            
+            if email_lower in signup_users or emp_id_lower in signup_users:
+                # Employee signed up after being added - they have their own password
+                emp['source'] = 'signup'
+            else:
+                emp['source'] = 'added'
+            employees.append(emp)
 
-        # Get users with role 'Employee' from users table (signup users)
-        cur.execute("SELECT id, username, first_name, last_name, email, role FROM users WHERE role = 'Employee'")
-        user_rows = cur.fetchall()
-
-        # Convert users to employee format
-        for user in user_rows:
-            user_id, username, first_name, last_name, email, role = user
-            # Check if this user is already in employees table (by email or username as employee_id)
-            exists = any(emp.get('email') == email or emp.get('employee_id') == username for emp in employees)
-            if not exists:
-                employees.append({
-                    'employee_id': username,
-                    'name': f"{first_name} {last_name}",
-                    'email': email,
-                    'phone': '-',
-                    'cnic': '-',
-                    'emergency': '-',
-                    'role': role,
-                    'salary': 0,
-                    'source': 'signup'  # Mark as signup user
-                })
+        # Add signup users that are NOT in employees table
+        for email_lower, user_data in signup_users.items():
+            if isinstance(user_data.get('employee_id'), str):  # Full user data, not just lookup
+                # Check if already in employees list
+                exists = any(emp.get('email', '').lower() == email_lower or 
+                            emp.get('employee_id', '').lower() == user_data['employee_id'].lower() 
+                            for emp in employees)
+                if not exists:
+                    employees.append({
+                        'employee_id': user_data['employee_id'],
+                        'name': user_data['name'],
+                        'email': user_data['email'],
+                        'phone': '-',
+                        'cnic': '-',
+                        'emergency': '-',
+                        'role': 'Employee',
+                        'salary': 0,
+                        'source': 'signup'
+                    })
 
         cur.close()
         return jsonify(employees)
@@ -1832,17 +1940,85 @@ def update_employee(emp_id):
     try:
         data = request.json
         cur = mysql.connection.cursor()
-        query = '''
-            UPDATE employees
-            SET name=%s, email=%s, phone=%s, cnic=%s,
-                emergency=%s, role=%s, salary=%s
-            WHERE employee_id=%s
-        '''
-        values = (
-            data['name'], data['email'], data['phone'], data['cnic'],
-            data['emergency_contact'], data['role'], data['salary'], emp_id
-        )
-        cur.execute(query, values)
+        
+        # First check if employee exists in employees table
+        cur.execute("SELECT employee_id FROM employees WHERE employee_id = %s", (emp_id,))
+        in_employees_table = cur.fetchone() is not None
+        
+        if in_employees_table:
+            # Update in employees table
+            query = '''
+                UPDATE employees
+                SET name=%s, email=%s, phone=%s, cnic=%s,
+                    emergency=%s, role=%s, salary=%s
+                WHERE employee_id=%s
+            '''
+            values = (
+                data['name'], data['email'], data['phone'], data['cnic'],
+                data['emergency_contact'], data['role'], data['salary'], emp_id
+            )
+            cur.execute(query, values)
+        else:
+            # Check if employee is in users table (signup employee)
+            cur.execute("SELECT id FROM users WHERE username = %s AND role = 'Employee'", (emp_id,))
+            in_users_table = cur.fetchone() is not None
+            
+            if in_users_table:
+                # Update in users table
+                name_parts = data['name'].split(' ', 1)
+                first_name = name_parts[0]
+                last_name = name_parts[1] if len(name_parts) > 1 else ''
+                
+                query = '''
+                    UPDATE users
+                    SET username=%s, first_name=%s, last_name=%s, email=%s
+                    WHERE username=%s AND role='Employee'
+                '''
+                values = (
+                    data.get('id', emp_id),  # new username (employee_id)
+                    first_name,
+                    last_name,
+                    data['email'],
+                    emp_id
+                )
+                cur.execute(query, values)
+                
+                # Also insert into employees table for full details
+                try:
+                    cur.execute('''
+                        INSERT INTO employees 
+                        (employee_id, name, email, phone, cnic, emergency, role, salary)
+                        VALUES (%s, %s, %s, %s, %s, %s, %s, %s)
+                    ''', (
+                        data.get('id', emp_id),
+                        data['name'],
+                        data['email'],
+                        data['phone'],
+                        data['cnic'],
+                        data['emergency_contact'],
+                        data['role'],
+                        data['salary']
+                    ))
+                except:
+                    pass  # Ignore if already exists
+            else:
+                # Employee not found in either table - create new in employees table
+                cur.execute('''
+                    INSERT INTO employees 
+                    (employee_id, name, email, phone, cnic, emergency, role, salary)
+                    VALUES (%s, %s, %s, %s, %s, %s, %s, %s)
+                ''', (
+                    emp_id,
+                    data['name'],
+                    data['email'],
+                    data['phone'],
+                    data['cnic'],
+                    data['emergency_contact'],
+                    data['role'],
+                    data['salary']
+                ))
+        
+        
         mysql.connection.commit()
         cur.close()
         return jsonify({'status': 'success', 'message': 'Employee updated successfully'})

@@ -6,7 +6,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Sign-In Page</title>
   <link rel="shortcut icon" href="/images/icon.png" type="image/x-icon">
-
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
   <style>
     * {
       margin: 0;
@@ -94,6 +94,34 @@
       border: 1px solid #ccc;
       border-radius: 5px;
       margin-bottom: 15px;
+    }
+
+    .password-wrapper {
+      position: relative;
+      margin-bottom: 15px;
+    }
+
+    .password-wrapper input {
+      width: 100%;
+      padding: 10px 40px 10px 12px;
+      font-size: 14px;
+      border: 1px solid #ccc;
+      border-radius: 5px;
+      margin-bottom: 0;
+    }
+
+    .password-toggle {
+      position: absolute;
+      right: 12px;
+      top: 50%;
+      transform: translateY(-50%);
+      cursor: pointer;
+      color: #666;
+      font-size: 16px;
+    }
+
+    .password-toggle:hover {
+      color: #0cb8b2;
     }
 
     .forgot-password {
@@ -228,7 +256,10 @@
         <span id="email-error" style="color: red; font-size: 12px;"></span>
 
         <label for="password">Password</label>
-        <input type="password" id="password" placeholder="Enter Your Password" required />
+        <div class="password-wrapper">
+          <input type="password" id="password" placeholder="Enter Your Password" required />
+          <i class="fas fa-eye password-toggle" id="togglePassword" onclick="togglePasswordVisibility()"></i>
+        </div>
         <span id="password-error" style="color: red; font-size: 12px;"></span>
 
         <a href="/forgot_password" class="forgot-password">Forgot Password?</a>
@@ -314,6 +345,7 @@
 
       let email = emailInput.value.trim();
       let password = passwordInput.value.trim();
+      let selectedRole = sessionStorage.getItem('selectedRole');
 
       if (emailError.textContent || passwordError.textContent) {
         return;
@@ -323,7 +355,7 @@
         method: "POST",
         headers: { "Content-Type": "application/json" },
         credentials: "include",
-        body: JSON.stringify({ email, password })
+        body: JSON.stringify({ email, password, selectedRole })
       })
         .then(response => response.json())
         .then(data => {
@@ -365,6 +397,21 @@
         sessionStorage.setItem('signupRole', selectedRoleSignup);
       }
       window.location.href = '/signup';
+    }
+
+    function togglePasswordVisibility() {
+      const passwordInput = document.getElementById('password');
+      const toggleIcon = document.getElementById('togglePassword');
+      
+      if (passwordInput.type === 'password') {
+        passwordInput.type = 'text';
+        toggleIcon.classList.remove('fa-eye');
+        toggleIcon.classList.add('fa-eye-slash');
+      } else {
+        passwordInput.type = 'password';
+        toggleIcon.classList.remove('fa-eye-slash');
+        toggleIcon.classList.add('fa-eye');
+      }
     }
   </script>
 </body>

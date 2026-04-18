@@ -202,9 +202,31 @@ function editEmployee(id) {
 }
 
 function showLoginCredentials(employeeId, email) {
+    // Find the employee to check source
+    const emp = employees.find(e => e.employee_id === employeeId);
+    const isSignupUser = emp && emp.source === 'signup';
+    
     const modal = document.createElement('div');
     modal.className = 'modal';
     modal.style.display = 'block';
+    
+    let passwordInfo = '';
+    if (isSignupUser) {
+        passwordInfo = `
+            <div><strong>Password:</strong> <span style="color: #6c757d;">Set by employee during signup</span></div>
+            <div style="margin-top: 15px; padding: 10px; background: #d1ecf1; border: 1px solid #bee5eb; border-radius: 4px;">
+                <i class="fas fa-info-circle" style="color: #0c5460;"></i>
+                <span style="color: #0c5460; margin-left: 8px;">This employee registered through the signup form and set their own password.</span>
+            </div>`;
+    } else {
+        passwordInfo = `
+            <div><strong>Password:</strong> <span style="color: #28a745;">employee123</span></div>
+            <div style="margin-top: 15px; padding: 10px; background: #fff3cd; border: 1px solid #ffeaa7; border-radius: 4px;">
+                <i class="fas fa-info-circle" style="color: #856404;"></i>
+                <span style="color: #856404; margin-left: 8px;">Default password for employees added by admin. Employee should change password after first login.</span>
+            </div>`;
+    }
+    
     modal.innerHTML = `
         <div class="modal-content">
             <div class="modal-header">
@@ -216,11 +238,7 @@ function showLoginCredentials(employeeId, email) {
                     <h4 style="color: #495057; margin-bottom: 15px;">Login Information:</h4>
                     <div><strong>Username:</strong> <span style="color: #007bff;">${employeeId}</span></div>
                     <div><strong>Email:</strong> <span style="color: #007bff;">${email}</span></div>
-                    <div><strong>Password:</strong> <span style="color: #28a745;">employee123</span></div>
-                    <div style="margin-top: 15px; padding: 10px; background: #fff3cd; border: 1px solid #ffeaa7; border-radius: 4px;">
-                        <i class="fas fa-info-circle" style="color: #856404;"></i>
-                        <span style="color: #856404; margin-left: 8px;">Employee can login using these credentials. Password can be changed after first login.</span>
-                    </div>
+                    ${passwordInfo}
                 </div>
             </div>
             <div class="modal-footer">

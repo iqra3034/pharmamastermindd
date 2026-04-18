@@ -2,9 +2,11 @@ let products = [];
 let cart = [];
 let currentPage = 1;
 let paginationData = null;
+let searchTimeout = null;
 
 document.addEventListener("DOMContentLoaded", () => {
     fetchProducts(1);
+    fetchCategories();
     updateCartDisplay();
     
     // Add event listeners after DOM is ready
@@ -13,20 +15,55 @@ document.addEventListener("DOMContentLoaded", () => {
     
     if (categorySelect) {
         categorySelect.addEventListener("change", () => {
-            fetchAllProductsForSearch();
+            const searchTerm = document.getElementById("searchInput")?.value.trim() || '';
+            fetchProducts(1, searchTerm);
         });
     }
     
     if (searchInput) {
+        // Instant search with debounce - searches across ALL products in database
         searchInput.addEventListener("input", () => {
-            fetchAllProductsForSearch();
+            clearTimeout(searchTimeout);
+            const searchTerm = searchInput.value.trim();
+            
+            searchTimeout = setTimeout(() => {
+                fetchProducts(1, searchTerm);
+            }, 300); // 300ms debounce
         });
     }
 });
 
-function fetchProducts(page = 1) {
+function fetchCategories() {
+    fetch('/api/categories')
+        .then(response => response.json())
+        .then(data => {
+            const categorySelect = document.getElementById('categorySelect');
+            if (categorySelect && data.categories) {
+                categorySelect.innerHTML = '<option>All Categories</option>';
+                data.categories.forEach(category => {
+                    const option = document.createElement('option');
+                    option.value = category;
+                    option.textContent = category;
+                    categorySelect.appendChild(option);
+                });
+            }
+        })
+        .catch(error => console.error('Error fetching categories:', error));
+}
+
+function fetchProducts(page = 1, searchTerm = '') {
     const perPage = 20; // Products per page
-    fetch(`/api/products?page=${page}&per_page=${perPage}`)
+    const category = document.getElementById("categorySelect")?.value || '';
+    
+    let url = `/api/products?page=${page}&per_page=${perPage}`;
+    if (searchTerm) {
+        url += `&search=${encodeURIComponent(searchTerm)}`;
+    }
+    if (category && category !== 'All Categories') {
+        url += `&category=${encodeURIComponent(category)}`;
+    }
+    
+    fetch(url)
         .then(res => res.json())
         .then(data => {
             if (data.products) {
