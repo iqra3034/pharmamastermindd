@@ -137,6 +137,12 @@ function addBadgeStyles() {
                 background-color: rgba(39, 174, 96, 0.1);
                 color: #27ae60;
             }
+            #userForm input:disabled {
+                background-color: #f5f5f5;
+                color: #888;
+                cursor: not-allowed;
+                border-color: #ddd;
+            }
         `;
         document.head.appendChild(style);
     }
@@ -197,6 +203,12 @@ function closeModal() {
     document.getElementById("userForm").reset();
     editMode = false;
     editUserId = null;
+    // Re-enable all fields for next edit
+    document.getElementById("username").disabled = false;
+    document.getElementById("email").disabled = false;
+    document.getElementById("firstName").disabled = false;
+    document.getElementById("lastName").disabled = false;
+    document.getElementById("password").disabled = false;
     document.body.style.overflow = "auto";
 }
 
@@ -294,6 +306,14 @@ function editUser(id) {
         document.getElementById("lastName").value = user.last_name || '';
         document.getElementById("role").value = user.role;
         document.getElementById("password").value = '';
+        
+        // Owner can ONLY edit role - all other fields disabled for ALL users
+        document.getElementById("username").disabled = true;
+        document.getElementById("email").disabled = true;
+        document.getElementById("firstName").disabled = true;
+        document.getElementById("lastName").disabled = true;
+        document.getElementById("password").disabled = true;
+        // Role is always enabled
         
         openModal();
     }
