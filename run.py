@@ -30,10 +30,10 @@ CORS(app, supports_credentials=True)
 
 stripe.api_key = 'sk_test_51RvFpAFnsPUQVISnTuNYVEFQlPbjSU8HBH3sxC5nFLLIBnnuJxs9cggYNENqUKD9PWdD4jPihDlkHeMTJD5l7PxF00Arox9DUH'  
 
-app.config['MYSQL_HOST'] = 'junction.proxy.rlwy.net'
-app.config['MYSQL_PORT'] = 55275
+app.config['MYSQL_HOST'] = 'metro.proxy.rlwy.net'
+app.config['MYSQL_PORT'] = 26378
 app.config['MYSQL_USER'] = 'root'
-app.config['MYSQL_PASSWORD'] = 'SGyckJNxStTohqGxHjQIyELVqGIbDaPp'
+app.config['MYSQL_PASSWORD'] = 'WdEMflbEssriKyIakYJSNIsxvuREaoNa'
 app.config['MYSQL_DB'] = 'railway'
 
 mysql = MySQL(app)
