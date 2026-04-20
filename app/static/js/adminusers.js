@@ -428,7 +428,7 @@ function showUserPassword(userId, username, email) {
                 </div>
             </div>
             <div class="modal-footer">
-                <button class="btn btn-primary" onclick="this.parentElement.parentElement.remove()">Close</button>
+                <button class="btn btn-primary" onclick="this.parentElement.parentElement.parentElement.remove(); document.body.style.overflow='auto';">Close</button>
             </div>
         </div>`;
     document.body.appendChild(modal);
