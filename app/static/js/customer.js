@@ -9,7 +9,7 @@ document.addEventListener("DOMContentLoaded", () => {
     fetchCategories();
     updateCartDisplay();
     
-    // Add event listeners after DOM is ready
+    
     const categorySelect = document.getElementById("categorySelect");
     const searchInput = document.getElementById("searchInput");
     
@@ -21,14 +21,14 @@ document.addEventListener("DOMContentLoaded", () => {
     }
     
     if (searchInput) {
-        // Instant search with debounce - searches across ALL products in database
+        
         searchInput.addEventListener("input", () => {
             clearTimeout(searchTimeout);
             const searchTerm = searchInput.value.trim();
             
             searchTimeout = setTimeout(() => {
                 fetchProducts(1, searchTerm);
-            }, 300); // 300ms debounce
+            }, 300);
         });
     }
 });
@@ -74,7 +74,7 @@ function fetchProducts(page = 1, searchTerm = '') {
                 updateProductCount();
                 updatePaginationControls();
             } else if (Array.isArray(data)) {
-                // Fallback for old API format
+                
                 products = data;
                 displayProducts(products);
                 updateProductCount();
@@ -103,7 +103,7 @@ function updatePaginationControls() {
         productCard.appendChild(paginationContainer);
     }
     
-    // Show pagination when not filtering
+    
     paginationContainer.style.display = "block";
     paginationContainer.innerHTML = "";
     
@@ -112,14 +112,14 @@ function updatePaginationControls() {
         return;
     }
     
-    // Create pagination nav
+    
     const nav = document.createElement("nav");
     nav.setAttribute("aria-label", "Page navigation");
     
     const ul = document.createElement("ul");
     ul.className = "pagination justify-content-center";
     
-    // Previous button
+    
     const prevLi = document.createElement("li");
     prevLi.className = `page-item ${!paginationData.has_prev ? 'disabled' : ''}`;
     prevLi.innerHTML = `
@@ -129,7 +129,7 @@ function updatePaginationControls() {
     `;
     ul.appendChild(prevLi);
     
-    // Page numbers
+    
     const startPage = Math.max(1, currentPage - 2);
     const endPage = Math.min(paginationData.total_pages, currentPage + 2);
     
@@ -168,7 +168,7 @@ function updatePaginationControls() {
         ul.appendChild(lastLi);
     }
     
-    // Next button
+    
     const nextLi = document.createElement("li");
     nextLi.className = `page-item ${!paginationData.has_next ? 'disabled' : ''}`;
     nextLi.innerHTML = `
@@ -187,33 +187,30 @@ function goToPage(page) {
         return;
     }
     
-    // Clear search and category filters when navigating pages
-    // This ensures we're in "browse mode" not "search mode"
+    
     document.getElementById("searchInput").value = "";
     document.getElementById("categorySelect").value = "All Categories";
     
     fetchProducts(page);
-    // Scroll to top of products section
+    
     document.querySelector(".card").scrollIntoView({ behavior: "smooth", block: "start" });
 }
 
 function fetchAllProductsForSearch() {
-    // Progressive search - fetch and display results as they arrive
     
-    // First, search current page products immediately
     applyFilters();
     
-    // Then fetch remaining pages in background
+    
     const totalPages = paginationData?.total_pages || 1;
     
-    if (totalPages <= 1) return; // Only current page exists
+    if (totalPages <= 1) return; 
     
-    // Build full product list progressively by fetching remaining pages
-    let allProducts = [...products]; // Start with current page
+   
+    let allProducts = [...products]; 
     
     const pagePromises = [];
     for (let page = 1; page <= totalPages; page++) {
-        if (page === currentPage) continue; // Skip current page, already have it
+        if (page === currentPage) continue; 
         
         pagePromises.push(
             fetch(`/api/products?per_page=20&page=${page}`)
@@ -227,13 +224,13 @@ function fetchAllProductsForSearch() {
         );
     }
     
-    // Fetch all pages and update display progressively
+    
     Promise.all(pagePromises).then(results => {
         results.forEach(pageProducts => {
             allProducts = allProducts.concat(pageProducts);
         });
         
-        // Update products with full list and re-apply filters
+        
         products = allProducts;
         applyFilters();
     }).catch(err => console.error("Error fetching products for search:", err));
@@ -258,12 +255,12 @@ function displayProducts(products) {
     const container = document.getElementById("productContainer");
     container.innerHTML = "";
     
-    // Check if user is actively filtering/searching
+    
     const category = document.getElementById("categorySelect").value;
     const searchTerm = document.getElementById("searchInput").value.toLowerCase();
     const isFiltering = (category !== "All Categories") || (searchTerm !== "");
     
-    // Hide pagination only when actively filtering/searching
+    
     const paginationControls = document.getElementById("paginationControls");
     if (paginationControls) {
         paginationControls.style.display = isFiltering ? "none" : "block";
@@ -393,11 +390,11 @@ function proceedToPayment() {
         return;
     }
 
-    // Show loading modal
+    
     const loadingModal = new bootstrap.Modal(document.getElementById('loadingModal'));
     loadingModal.show();
 
-    // Store cart data in sessionStorage for payment page
+    
     const orderData = {
         cart: cart,
         total: cart.reduce((acc, item) => acc + item.price * item.quantity, 0),
@@ -406,7 +403,7 @@ function proceedToPayment() {
     
     sessionStorage.setItem('pendingOrder', JSON.stringify(orderData));
 
-    // Simulate processing time then redirect to payment
+    
     setTimeout(() => {
         loadingModal.hide();
         window.location.href = '/payment';
@@ -417,13 +414,12 @@ function newOrder() {
     clearCart();
 }
 
-// Alias for backward compatibility
 function clearorder() {
     clearCart();
 }
 
 function showNotification(message, type = "info") {
-    // Create notification element
+    
     const notification = document.createElement('div');
     notification.className = `alert alert-${type === 'error' ? 'danger' : type} alert-dismissible fade show position-fixed`;
     notification.style.cssText = `
@@ -444,7 +440,7 @@ function showNotification(message, type = "info") {
     
     document.body.appendChild(notification);
     
-    // Auto remove after 3 seconds
+    
     setTimeout(() => {
         if (notification.parentNode) {
             notification.remove();
@@ -452,9 +448,8 @@ function showNotification(message, type = "info") {
     }, 3000);
 }
 
-// Add some loading states and animations
 document.addEventListener('DOMContentLoaded', function() {
-    // Add loading animation to product container initially
+    
     const container = document.getElementById("productContainer");
     container.innerHTML = `
         <div class="col-12 text-center py-5">
@@ -472,11 +467,11 @@ function proceedToPayment() {
         return;
     }
 
-    // Show loading modal
+   
     const loadingModal = new bootstrap.Modal(document.getElementById('loadingModal'));
     loadingModal.show();
 
-    // Store cart data in sessionStorage for payment page
+    
     const orderData = {
         cart: cart,
         total: cart.reduce((acc, item) => acc + item.price * item.quantity, 0),
@@ -485,7 +480,7 @@ function proceedToPayment() {
     
     sessionStorage.setItem('pendingOrder', JSON.stringify(orderData));
 
-    // Simulate processing time then redirect to payment
+    
     setTimeout(() => {
         loadingModal.hide();
         window.location.href = '/payment';
@@ -496,13 +491,13 @@ function newOrder() {
     clearCart();
 }
 
-// Alias for backward compatibility
+
 function clearorder() {
     clearCart();
 }
 
 function showNotification(message, type = "info") {
-    // Create notification element
+    
     const notification = document.createElement('div');
     notification.className = `alert alert-${type === 'error' ? 'danger' : type} alert-dismissible fade show position-fixed`;
     notification.style.cssText = `
@@ -523,7 +518,7 @@ function showNotification(message, type = "info") {
     
     document.body.appendChild(notification);
     
-    // Auto remove after 3 seconds
+    
     setTimeout(() => {
         if (notification.parentNode) {
             notification.remove();
@@ -531,9 +526,8 @@ function showNotification(message, type = "info") {
     }, 3000);
 }
 
-// Add some loading states and animations
 document.addEventListener('DOMContentLoaded', function() {
-    // Add loading animation to product container initially
+    
     const container = document.getElementById("productContainer");
     container.innerHTML = `
         <div class="col-12 text-center py-5">

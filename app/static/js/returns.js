@@ -103,7 +103,7 @@ function updateTotal() {
 }
 
 function increaseQuantity(event) {
-    if (event) event.preventDefault(); // stop form submission
+    if (event) event.preventDefault(); 
     let quantityInput = document.getElementById('quantity');
     let currentQuantity = parseInt(quantityInput.value, 10);
     const maxQuantity = parseInt(quantityInput.max) || 999;

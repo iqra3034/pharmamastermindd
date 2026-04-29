@@ -5,17 +5,17 @@ window.onload = function() {
     fetchProducts();
     loadStoredProducts();
     
-    // Add search functionality
+    
     const searchInput = document.getElementById("search-products");
     if (searchInput) {
         searchInput.addEventListener("input", (e) => {
             const searchTerm = e.target.value.toLowerCase();
             
             if (searchTerm === "") {
-                // Show all products if search is empty
+                
                 displayProducts(allProducts);
             } else {
-                // Filter products based on search term
+                
                 const filtered = allProducts.filter(product => 
                     product.product_name.toLowerCase().includes(searchTerm) ||
                     (product.product_id && product.product_id.toString().includes(searchTerm)) ||
@@ -50,16 +50,15 @@ function loadStoredProducts() {
 
 async function fetchProducts() {
     try {
-        // First fetch page 1 and show immediately
+        
         const res = await fetch("/api/products?page=1&per_page=100");
         const data = await res.json();
         
-        // Handle paginated response
+        
         if (data.products && Array.isArray(data.products)) {
             allProducts = data.products;
-            displayProducts(allProducts); // Show first page immediately
+            displayProducts(allProducts); 
             
-            // Fetch remaining pages in background
             const totalPages = data.pagination?.total_pages || 1;
             if (totalPages > 1) {
                 const pagePromises = [];
@@ -71,17 +70,16 @@ async function fetchProducts() {
                     );
                 }
                 
-                // Get results as they come in (don't wait for all)
                 Promise.all(pagePromises).then(results => {
                     results.forEach(pageProducts => {
                         allProducts = allProducts.concat(pageProducts);
                     });
-                    // Update display with all products
+                    
                     displayProducts(allProducts);
                 });
             }
         } else if (Array.isArray(data)) {
-            // Old format - data is direct array
+            
             allProducts = data;
             displayProducts(allProducts);
         } else {

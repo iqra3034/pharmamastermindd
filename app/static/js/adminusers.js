@@ -203,7 +203,7 @@ function closeModal() {
     document.getElementById("userForm").reset();
     editMode = false;
     editUserId = null;
-    // Re-enable all fields for next edit
+    
     document.getElementById("username").disabled = false;
     document.getElementById("email").disabled = false;
     document.getElementById("firstName").disabled = false;
@@ -307,13 +307,13 @@ function editUser(id) {
         document.getElementById("role").value = user.role;
         document.getElementById("password").value = '';
         
-        // Owner can ONLY edit role - all other fields disabled for ALL users
+        
         document.getElementById("username").disabled = true;
         document.getElementById("email").disabled = true;
         document.getElementById("firstName").disabled = true;
         document.getElementById("lastName").disabled = true;
         document.getElementById("password").disabled = true;
-        // Role is always enabled
+        
         
         openModal();
     }

@@ -954,6 +954,7 @@ def report_customer_patterns():
             """
             SELECT 
                 customer_id,
+                MAX(customer_name) AS customer_name,
                 product_name,
                 MAX(product_sales) AS product_sales,
                 MAX(gross_margin) AS gross_margin,
@@ -965,11 +966,25 @@ def report_customer_patterns():
             """
         )
         rows = cursor.fetchall()
+        
+        # Format rows properly
+        formatted_rows = []
+        for row in rows:
+            formatted_rows.append([
+                str(row[0]),  # Customer ID
+                str(row[1] or 'N/A'),  # Customer Name
+                str(row[2] or 'N/A'),  # Products
+                f"{float(row[3] or 0):.2f} PKR",  # Sales
+                f"{float(row[4] or 0):.2f}%",  # Gross Margin (proper format)
+                str(row[5] or 0),  # Frequency
+                str(row[6] or 'N/A')  # Next Purchase
+            ])
+        
         pdf_path = _generate_pdf_report(
             title='Customer Purchase Patterns Report',
-            columns=['Customer ID', 'Products', 'Product Sales (PKR)', 'Gross Margin %', 'Frequency', 'Next Purchase'],
-            rows=rows,
-            col_widths=[25, 120, 35, 30, 25, 35]
+            columns=['Customer ID', 'Customer Name', 'Products', 'Sales (PKR)', 'Margin %', 'Frequency', 'Next Purchase'],
+            rows=formatted_rows,
+            col_widths=[20, 40, 100, 35, 30, 25, 35]
         )
         cursor.close()
         return jsonify({"pdf_url": f"/dss/download_report/{os.path.basename(pdf_path)}"})
@@ -1471,6 +1486,7 @@ def customer_purchase_patterns():
         query = """
         SELECT 
             o.customer_id,
+            CONCAT(COALESCE(u.first_name, ''), ' ', COALESCE(u.last_name, '')) AS customer_name,
             oi.product_id,
             p.product_name,
             oi.quantity,
@@ -1480,15 +1496,19 @@ def customer_purchase_patterns():
         FROM order_items oi
         JOIN orders o ON oi.order_id = o.order_id
         JOIN products p ON oi.product_id = p.product_id
+        LEFT JOIN users u ON o.customer_id = u.id
         """
         cursor.execute(query)
         rows = cursor.fetchall()
 
         data = {}
+        customer_names = {}
         for row in rows:
-            customer_id, product_id, product_name, quantity, unit_price, cost_price, order_date = row
+            customer_id, customer_name, product_id, product_name, quantity, unit_price, cost_price, order_date = row
             if customer_id is None:
                 continue
+            if customer_id not in customer_names:
+                customer_names[customer_id] = customer_name.strip() if customer_name else f'Customer {customer_id}'
             if customer_id not in data:
                 data[customer_id] = []
             data[customer_id].append({
@@ -1504,6 +1524,7 @@ def customer_purchase_patterns():
         sequence_number = 1   
 
         for customer_id, items in data.items():
+            customer_name = customer_names.get(customer_id, f'Customer {customer_id}')
             total_quantity = sum(d["quantity"] for d in items)
             total_unit_price_sum = sum(d["quantity"] * d["unit_price"] for d in items)
             total_cost_sum = sum(d["quantity"] * d["cost_price"] for d in items)
@@ -1511,6 +1532,10 @@ def customer_purchase_patterns():
             
             product_sales = total_unit_price_sum
             gross_margin = ((product_sales - total_cost_sum) / product_sales) * 100 if product_sales > 0 else 0
+            # Don't show negative gross margin - set to 0 if negative
+            if gross_margin < 0:
+                gross_margin = 0
+            gross_margin = round(gross_margin, 2)  # Proper percentage value like 25.50%
             inventory_turnover_rate = total_cost_sum / 30 if total_cost_sum > 0 else 0
             purchase_frequency = len(items)
 
@@ -1533,12 +1558,13 @@ def customer_purchase_patterns():
 
             results.append({
                 "customer_id": customer_id,
+                "customer_name": customer_name,
                 "customer_": sequence_number,   
                 "product_ids": ", ".join({str(d["product_id"]) for d in items}),
                 "product_name": ", ".join({d["product_name"] for d in items}),
                 "product_sales": f"{round(product_sales, 2)} PKR",
                 "total_quantity_purchased": total_quantity, 
-                "gross_margin": f"{round(gross_margin, 2)}%",
+                "gross_margin": f"{gross_margin}%",  # Always positive or 0
                 "inventory_turnover_rate": f"{round(inventory_turnover_rate, 2)} times per period",
                 "purchase_frequency": f"{purchase_frequency} times",
                 "next_predicted_purchase_date": next_predicted_purchase_date.strftime("%Y-%m-%d"),
@@ -1549,11 +1575,12 @@ def customer_purchase_patterns():
             
             upsert_query = """
             INSERT INTO customer_purchase_patterns
-            (customer_id, customer_, product_id, product_name, total_quantity_purchased, 
+            (customer_id, customer_name, customer_, product_id, product_name, total_quantity_purchased, 
              product_sales, gross_margin, inventory_turnover_rate, 
              fahp_score, purchase_frequency, next_predicted_purchase_date, confidence_score) 
-            VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+            VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
             ON DUPLICATE KEY UPDATE
+            customer_name = VALUES(customer_name),
             customer_ = VALUES(customer_),
             product_name = VALUES(product_name),
             total_quantity_purchased = VALUES(total_quantity_purchased),
@@ -1567,6 +1594,7 @@ def customer_purchase_patterns():
             """
             cursor.execute(upsert_query, (
                 customer_id,
+                customer_name,
                 sequence_number,   
                 results[-1]["product_ids"],
                 results[-1]["product_name"],

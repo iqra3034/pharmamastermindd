@@ -8,7 +8,6 @@ document.addEventListener("DOMContentLoaded", () => {
     fetchProducts(1);
     fetchCategories();
 
-    // Mobile menu toggle
     const toggleBtn = document.querySelector('.menu-toggle');
     const navLinks = document.querySelector('.nav-links');
     if (toggleBtn && navLinks) {
@@ -18,7 +17,6 @@ document.addEventListener("DOMContentLoaded", () => {
             navLinks.classList.toggle('active');
         });
         
-        // Close menu when clicking outside
         document.addEventListener('click', (e) => {
             if (!e.target.closest('.navbar')) {
                 navLinks.classList.remove('active');
@@ -30,14 +28,13 @@ document.addEventListener("DOMContentLoaded", () => {
     document.getElementById("paidAmount").addEventListener("input", updateBillingSummary);
 
     
-    // Instant search with debounce - searches across ALL products in database
     document.getElementById("searchInput").addEventListener("input", function () {
         clearTimeout(searchTimeout);
         const searchTerm = this.value.trim();
         
         searchTimeout = setTimeout(() => {
             fetchProducts(1, searchTerm);
-        }, 300); // 300ms debounce
+        }, 300); 
     });
 
     document.getElementById("categorySelect").addEventListener("change", function () {
@@ -100,7 +97,7 @@ function fetchProducts(page = 1, search = '') {
                 displayProducts(products);
                 updatePaginationControls();
             } else if (Array.isArray(data)) {
-                // Fallback for old API format
+                
                 products = data;
                 displayProducts(products);
             }
@@ -112,7 +109,7 @@ function updatePaginationControls() {
     let paginationContainer = document.getElementById("posPaginationControls");
     
     if (!paginationContainer) {
-        // Create pagination container if it doesn't exist
+        
         const tableCard = document.querySelector(".table-responsive");
         paginationContainer = document.createElement("div");
         paginationContainer.id = "posPaginationControls";
@@ -126,14 +123,14 @@ function updatePaginationControls() {
         return;
     }
     
-    // Create pagination nav
+    
     const nav = document.createElement("nav");
     nav.setAttribute("aria-label", "Page navigation");
     
     const ul = document.createElement("ul");
     ul.className = "pagination justify-content-center";
     
-    // Previous button
+    
     const prevLi = document.createElement("li");
     prevLi.className = `page-item ${!paginationData.has_prev ? 'disabled' : ''}`;
     prevLi.innerHTML = `
@@ -143,7 +140,7 @@ function updatePaginationControls() {
     `;
     ul.appendChild(prevLi);
     
-    // Page numbers
+    
     const startPage = Math.max(1, currentPage - 2);
     const endPage = Math.min(paginationData.total_pages, currentPage + 2);
     
@@ -182,7 +179,7 @@ function updatePaginationControls() {
         ul.appendChild(lastLi);
     }
     
-    // Next button
+    
     const nextLi = document.createElement("li");
     nextLi.className = `page-item ${!paginationData.has_next ? 'disabled' : ''}`;
     nextLi.innerHTML = `
@@ -201,7 +198,7 @@ function goToPage(page) {
         return;
     }
     fetchProducts(page);
-    // Scroll to top of products section
+    
     document.querySelector(".table-responsive").scrollIntoView({ behavior: "smooth", block: "start" });
 }
 

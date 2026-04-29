@@ -12,12 +12,12 @@ let searchTimeout = null;
 
 function setupEventListeners() {
    
-    // Instant search with debounce - searches across ALL products in database
+    
     document.getElementById('searchInput').addEventListener('input', function() {
         clearTimeout(searchTimeout);
         searchTimeout = setTimeout(() => {
             fetchProducts(1);
-        }, 300); // 300ms debounce
+        }, 300); 
     });
     document.getElementById('categoryFilter').addEventListener('change', function() {
         fetchProducts(1);
@@ -40,7 +40,7 @@ function fetchCategories() {
         .then(data => {
             const categoryFilter = document.getElementById('categoryFilter');
             if (categoryFilter && data.categories) {
-                // Keep "All Categories" option and add database categories
+                
                 categoryFilter.innerHTML = '<option value="all">All Categories</option>';
                 data.categories.forEach(category => {
                     const option = document.createElement('option');
@@ -54,7 +54,7 @@ function fetchCategories() {
 }
 
 function fetchProducts(page = 1) {
-    const perPage = 20; // Products per page for inventory
+    const perPage = 20; 
     const searchTerm = document.getElementById('searchInput')?.value.trim() || '';
     const categoryFilter = document.getElementById('categoryFilter')?.value || '';
     
@@ -76,7 +76,7 @@ function fetchProducts(page = 1) {
         .then(data => {
             console.log("Fetched Products:", data);
             
-            // Handle both new paginated format and old array format
+            
             if (data.products && Array.isArray(data.products)) {
                 products = data.products;
                 paginationData = data.pagination;
@@ -152,7 +152,7 @@ function updateInventoryPaginationControls() {
     let paginationContainer = document.getElementById("inventoryPaginationControls");
     
     if (!paginationContainer) {
-        // Create pagination container if it doesn't exist
+        
         const tableContainer = document.querySelector(".table-container");
         paginationContainer = document.createElement("div");
         paginationContainer.id = "inventoryPaginationControls";
@@ -168,7 +168,6 @@ function updateInventoryPaginationControls() {
         return;
     }
     
-    // Create pagination nav
     const nav = document.createElement("nav");
     nav.setAttribute("aria-label", "Page navigation");
     
@@ -179,7 +178,7 @@ function updateInventoryPaginationControls() {
     ul.style.padding = "0";
     ul.style.alignItems = "center";
     
-    // Previous button
+    
     const prevLi = document.createElement("li");
     prevLi.innerHTML = `
         <button onclick="inventoryGoToPage(${currentPage - 1})" 
@@ -190,7 +189,6 @@ function updateInventoryPaginationControls() {
     `;
     ul.appendChild(prevLi);
     
-    // Page numbers
     const startPage = Math.max(1, currentPage - 2);
     const endPage = Math.min(paginationData.total_pages, currentPage + 2);
     
@@ -225,7 +223,6 @@ function updateInventoryPaginationControls() {
         ul.appendChild(lastLi);
     }
     
-    // Next button
     const nextLi = document.createElement("li");
     nextLi.innerHTML = `
         <button onclick="inventoryGoToPage(${currentPage + 1})" 

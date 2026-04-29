@@ -20,7 +20,7 @@ async function fetchExpiryAlerts() {
         }
 
         const data = await response.json();
-        console.log('✅ Data received:', data);
+        console.log('Data received:', data);
 
         if (data.error) {
             console.error('🚫 Backend error:', data.error);
@@ -41,7 +41,7 @@ async function fetchExpiryAlerts() {
         }
 
         if (data.length === 0) {
-            console.log('ℹ️ No products to display');
+            console.log(' No products to display');
             const container = document.getElementById('productsContainer');
             if (container) {
                 container.innerHTML = '<p style="grid-column: 1/-1; text-align: center; padding: 20px;">No products found in database</p>';
@@ -50,16 +50,16 @@ async function fetchExpiryAlerts() {
         }
 
         products = data;
-        console.log('✨ Products loaded successfully:', products.length);
+        console.log(' Products loaded successfully:', products.length);
         
         const expiredProducts = products.filter(p => p.time_to_expiry < 0);
         const expiringProducts = products.filter(p => p.time_to_expiry >= 0);
         
-        console.log('📊 Expired:', expiredProducts.length, 'Expiring:', expiringProducts.length);
+        console.log(' Expired:', expiredProducts.length, 'Expiring:', expiringProducts.length);
         
         displayProducts(products);
     } catch (err) {
-        console.error('💥 Fetch error:', err);
+        console.error('Fetch error:', err);
         console.error('Error details:', err.message, err.stack);
         const container = document.getElementById('productsContainer');
         if (container) {
@@ -149,7 +149,6 @@ function filterProducts() {
 }
 
 
-// Event listeners for filters
 document.addEventListener('DOMContentLoaded', function() {
     const timeFilter = document.getElementById('timeFilter');
     const searchProduct = document.getElementById('searchProduct');
@@ -161,11 +160,9 @@ document.addEventListener('DOMContentLoaded', function() {
         searchProduct.addEventListener('input', filterProducts);
     }
     
-    // Fetch expiry alerts on page load
     fetchExpiryAlerts();
 });
 
-// Sidebar toggle
 document.addEventListener('DOMContentLoaded', () => {
     const menuToggle = document.querySelector('.menu-toggle');
     const sidebar = document.querySelector('.sidebar');
@@ -194,7 +191,6 @@ document.addEventListener('DOMContentLoaded', () => {
     });
 });
 
-// Toggle button for sidebar collapse
 const sidebar = document.querySelector('.sidebar');
 const main = document.querySelector('.main-content');
 const toggleBtn = document.querySelector('.toggle-btn');

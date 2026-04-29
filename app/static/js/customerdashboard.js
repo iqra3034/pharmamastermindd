@@ -31,20 +31,29 @@ async function fetchCustomerData() {
 
 function processCustomerData(users, orders) {
     const customerMap = new Map();
+    
+    // Process all users (including those from purchase patterns)
     users.forEach(user => {
-        if (user.role === 'customer') {
+        if (user.role === 'customer' || user.source === 'purchase_patterns') {
+            const name = user.source === 'purchase_patterns' 
+                ? `${user.first_name} ${user.last_name}`.trim() || `Customer #${user.id}`
+                : `${user.first_name || ''} ${user.last_name || ''}`.trim() || user.username;
+            
             customerMap.set(user.id, {
                 id: user.id,
-                name: `${user.first_name} ${user.last_name}`,
-                email: user.email,
-                username: user.username,
+                name: name,
+                email: user.email || 'N/A',
+                username: user.username || `customer_${user.id}`,
                 totalOrders: 0,
                 totalSpent: 0,
                 lastOrderDate: null,
-                orders: []
+                orders: [],
+                source: user.source || 'users'
             });
         }
     });
+    
+    // Process orders
     orders.forEach(order => {
         if (order.customer_id && customerMap.has(order.customer_id)) {
             const customer = customerMap.get(order.customer_id);
@@ -75,7 +84,7 @@ function displayCustomers(customersToShow) {
     const tbody = document.getElementById('customerTableBody');
     tbody.innerHTML = '';
     if (customersToShow.length === 0) {
-        tbody.innerHTML = '<tr><td colspan="7" style="text-align: center; padding: 20px; color: #666;">No customers found</td></tr>';
+        tbody.innerHTML = '<tr><td colspan="6" style="text-align: center; padding: 20px; color: #666;">No customers found</td></tr>';
         return;
     }
     customersToShow.forEach(customer => {
@@ -84,7 +93,6 @@ function displayCustomers(customersToShow) {
         row.innerHTML = `
             <td style="padding: 15px;">${customer.id}</td>
             <td style="padding: 15px; font-weight: 500;">${customer.name}</td>
-            <td style="padding: 15px;">${customer.email}</td>
             <td style="padding: 15px; text-align: center;">
                 <span style="background: var(--primary-color); color: white; padding: 4px 8px; border-radius: 12px; font-size: 0.9rem;">
                     ${customer.totalOrders}
@@ -111,8 +119,9 @@ function filterCustomers() {
     const searchTerm = document.getElementById('searchCustomer').value.toLowerCase();
     const filtered = customers.filter(customer => 
         customer.name.toLowerCase().includes(searchTerm) ||
-        customer.email.toLowerCase().includes(searchTerm) ||
-        customer.username.toLowerCase().includes(searchTerm)
+        (customer.email && customer.email.toLowerCase().includes(searchTerm)) ||
+        (customer.username && customer.username.toLowerCase().includes(searchTerm)) ||
+        customer.id.toString().includes(searchTerm)
     );
     displayCustomers(filtered);
 }
@@ -154,8 +163,7 @@ async function viewCustomerDetails(customerId) {
             </h2>
             <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(250px, 1fr)); gap: 20px; margin-bottom: 30px;">
                 <div style="background: var(--background-light); padding: 20px; border-radius: 8px;">
-                    <h4><i class="fas fa-envelope"></i> Contact Information</h4>
-                    <p><strong>Email:</strong> ${customer.email}</p>
+                    <h4><i class="fas fa-user"></i> Customer Information</h4>
                     <p><strong>Username:</strong> ${customer.username}</p>
                     <p><strong>Customer ID:</strong> ${customer.id}</p>
                 </div>

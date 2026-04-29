@@ -4,7 +4,7 @@ let totalProductCount = 0;
 const itemsPerPage = 20;
 
 function fetchInventory(page = 1) {
-    // Fetch only the current page - don't load all pages upfront
+    
     fetch(`/api/products?per_page=${itemsPerPage}&page=${page}`)
         .then(response => response.json())
         .then(data => {
@@ -81,7 +81,7 @@ function updateInventoryPagination() {
     const totalPages = Math.ceil(totalProductCount / itemsPerPage);
     if (totalPages <= 1) return;
     
-    // Previous button
+    
     const prevBtn = document.createElement("button");
     prevBtn.innerHTML = '<i class="fas fa-chevron-left"></i> Prev';
     prevBtn.disabled = currentPage === 1;
@@ -89,7 +89,7 @@ function updateInventoryPagination() {
     prevBtn.onclick = () => goToPage(currentPage - 1);
     paginationContainer.appendChild(prevBtn);
     
-    // Page numbers
+    
     const startPage = Math.max(1, currentPage - 2);
     const endPage = Math.min(totalPages, currentPage + 2);
     
@@ -132,7 +132,7 @@ function updateInventoryPagination() {
         paginationContainer.appendChild(lastBtn);
     }
     
-    // Next button
+    
     const nextBtn = document.createElement("button");
     nextBtn.innerHTML = 'Next <i class="fas fa-chevron-right"></i>';
     nextBtn.disabled = currentPage === totalPages;
@@ -327,7 +327,7 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     }
 
-    // Desktop sidebar collapse toggle
+    
     const toggleBtn = document.querySelector('.toggle-btn');
     if (toggleBtn && sidebar) {
         toggleBtn.addEventListener('click', () => {

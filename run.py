@@ -780,13 +780,20 @@ def get_customer_ledger(customer_id):
         cur.execute("SELECT id, username, first_name, last_name, email FROM users WHERE id = %s", (customer_id,))
         customer_info = cur.fetchone()
         
+        # If not found in users, check customer_purchase_patterns
+        if not customer_info:
+            cur.execute("SELECT customer_id, customer_name FROM customer_purchase_patterns WHERE customer_id = %s LIMIT 1", (customer_id,))
+            pattern_info = cur.fetchone()
+            if pattern_info:
+                customer_info = (pattern_info[0], f"customer_{pattern_info[0]}", pattern_info[1].split()[0] if pattern_info[1] else '', ' '.join(pattern_info[1].split()[1:]) if pattern_info[1] and len(pattern_info[1].split()) > 1 else '', '')
+        
         if not customer_info:
             return jsonify({"error": "Customer not found"}), 404
         
         customer_data = {
             'id': customer_info[0],
-            'name': f"{customer_info[2]} {customer_info[3]}",
-            'email': customer_info[4]
+            'name': f"{customer_info[2]} {customer_info[3]}".strip() or f"Customer #{customer_id}",
+            'email': customer_info[4] if customer_info[4] else 'N/A'
         }
         
 
@@ -801,7 +808,7 @@ def get_customer_ledger(customer_id):
                 oi.unit_price as rate,
                 0 as credit_amount,
                 oi.total_price as debit_amount,
-                'Dr' as dr_cr
+                'Debit' as dr_cr
             FROM orders o
             JOIN order_items oi ON o.order_id = oi.order_id
             WHERE o.customer_id = %s
@@ -818,7 +825,7 @@ def get_customer_ledger(customer_id):
                 o.paid_amount as rate,
                 o.paid_amount as credit_amount,
                 0 as debit_amount,
-                'Cr' as dr_cr
+                'Credit' as dr_cr
             FROM orders o
             WHERE o.customer_id = %s AND o.paid_amount > 0
             
@@ -851,7 +858,7 @@ def get_customer_ledger(customer_id):
                 'credit_amount': credit_amount,
                 'debit_amount': debit_amount,
                 'balance': running_balance,
-                'dr_cr': 'Dr' if running_balance >= 0 else 'Cr'
+                'dr_cr': 'Debit' if running_balance >= 0 else 'Credit'
             }
             transactions.append(transaction)
 
@@ -864,7 +871,7 @@ def get_customer_ledger(customer_id):
     'total_debit': total_debit,
     'total_credit': total_credit,
     'ending_balance': abs(running_balance),
-    'ending_type': 'Dr' if running_balance >= 0 else 'Cr'
+    'ending_type': 'Debit' if running_balance >= 0 else 'Credit'
 }
 
         cur.close()
@@ -1105,15 +1112,46 @@ from MySQLdb.cursors import DictCursor
 @app.route('/api/customers', methods=['GET'])
 def get_customers():
     try:
-        cur = mysql.connection.cursor(DictCursor)   
+        cur = mysql.connection.cursor(DictCursor)
+        
+        # Get customers from users table
         cur.execute("""
             SELECT id, first_name, last_name, email, username, role
             FROM users
             WHERE role = 'customer'
         """)
-        customers = cur.fetchall()
+        users_customers = list(cur.fetchall())
+        
+        # Get customers from customer_purchase_patterns table
+        cur.execute("""
+            SELECT DISTINCT customer_id, customer_name
+            FROM customer_purchase_patterns
+            WHERE customer_id IS NOT NULL
+        """)
+        pattern_customers = cur.fetchall()
+        
+        # Create a set of existing user IDs
+        existing_ids = {c['id'] for c in users_customers}
+        
+        # Add customers from patterns that are not in users table
+        for pc in pattern_customers:
+            if pc['customer_id'] not in existing_ids:
+                name_parts = (pc['customer_name'] or '').split()
+                users_customers.append({
+                    'id': pc['customer_id'],
+                    'first_name': name_parts[0] if name_parts else '',
+                    'last_name': ' '.join(name_parts[1:]) if len(name_parts) > 1 else '',
+                    'email': '',
+                    'username': f"customer_{pc['customer_id']}",
+                    'role': 'customer',
+                    'source': 'purchase_patterns'
+                })
+        
+        # Sort customers: purchase_patterns first, then users
+        users_customers.sort(key=lambda x: 0 if x.get('source') == 'purchase_patterns' else 1)
+        
         cur.close()
-        return jsonify(customers), 200
+        return jsonify(users_customers), 200
     except Exception as e:
         print("Error in /api/customers:", str(e))
         return jsonify({"error": str(e)}), 500
@@ -2052,6 +2090,60 @@ def delete_employee(emp_id):
         print("Delete error:", e)
         return jsonify({'status': 'error', 'message': str(e)}), 500
 
+#testing
+from flask import Flask, request
+import time
+import logging
+
+# Stats storage
+stats = {
+    'total_requests': 0,
+    'errors': 0,
+    'response_times': [],
+    'users': set()
+}
+
+@app.before_request
+def start_timer():
+    request.start_time = time.time()
+
+@app.after_request
+def log_response(response):
+    duration = round((time.time() - request.start_time) * 1000, 2)
+    
+    # Update stats
+    stats['total_requests'] += 1
+    stats['response_times'].append(duration)
+    stats['users'].add(request.remote_addr)
+    if response.status_code >= 400:
+        stats['errors'] += 1
+    
+    return response
+
+# Report Route
+@app.route('/report')
+def generate_report():
+    times = stats['response_times']
+    
+    if not times:
+        return "No data available yet"
+    
+    report = f"""
+    ================================
+    LOAD TESTING REPORT
+    ================================
+    Total Requests  : {stats['total_requests']}
+    Total Users     : {len(stats['users'])}
+    Total Errors    : {stats['errors']}
+    --------------------------------
+    Avg Response    : {round(sum(times)/len(times), 2)} ms
+    Max Response    : {max(times)} ms
+    Min Response    : {min(times)} ms
+    --------------------------------
+    Success Rate    : {round((stats['total_requests']-stats['errors'])/stats['total_requests']*100, 2)}%
+    ================================
+    """
+    return f"<pre>{report}</pre>"
 
 if __name__ == "__main__":
     port = int(os.environ.get("PORT", 5000))

@@ -115,7 +115,7 @@ class EmailService:
                     <p>If you didn't create an account with us, please ignore this email.</p>
                 </div>
                 <div class="footer">
-                    <p> 2024 PharmaMastermind. All rights reserved.</p>
+                    <p> 2026 PharmaMastermind. All rights reserved.</p>
                     <p>Dogar Pharmacy, Bucha Chatta</p>
                 </div>
             </div>
