@@ -967,15 +967,21 @@ def report_customer_patterns():
         )
         rows = cursor.fetchall()
         
-        # Format rows properly
+        # Format rows properly - skip negative margin rows
         formatted_rows = []
         for row in rows:
+            gross_margin = float(row[4] or 0)
+            
+            # Skip rows with negative gross margin
+            if gross_margin < 0:
+                continue
+            
             formatted_rows.append([
                 str(row[0]),  # Customer ID
                 str(row[1] or 'N/A'),  # Customer Name
                 str(row[2] or 'N/A'),  # Products
                 f"{float(row[3] or 0):.2f} PKR",  # Sales
-                f"{float(row[4] or 0):.2f}%",  # Gross Margin (proper format)
+                f"{gross_margin:.2f}%",  # Gross Margin
                 str(row[5] or 0),  # Frequency
                 str(row[6] or 'N/A')  # Next Purchase
             ])

@@ -2145,6 +2145,10 @@ def generate_report():
     """
     return f"<pre>{report}</pre>"
 
+@app.route('/loaderio-8258b9c0e2f97633980b81e04ffb581a')
+def loaderio():
+    return 'loaderio-8258b9c0e2f97633980b81e04ffb581a'
+
 if __name__ == "__main__":
     port = int(os.environ.get("PORT", 5000))
     app.run(host='0.0.0.0', port=port, debug=False)
