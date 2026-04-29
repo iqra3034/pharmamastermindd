@@ -2093,57 +2093,53 @@ def delete_employee(emp_id):
 #testing
 from flask import Flask, request
 import time
-import logging
 
-# Stats storage
+
+
+# simple stats
 stats = {
-    'total_requests': 0,
-    'errors': 0,
-    'response_times': [],
-    'users': set()
+    "total": 0,
+    "errors": 0,
+    "times": [],
+    "users": set()
 }
 
 @app.before_request
-def start_timer():
+def start():
     request.start_time = time.time()
 
 @app.after_request
-def log_response(response):
-    duration = round((time.time() - request.start_time) * 1000, 2)
-    
-    # Update stats
-    stats['total_requests'] += 1
-    stats['response_times'].append(duration)
-    stats['users'].add(request.remote_addr)
-    if response.status_code >= 400:
-        stats['errors'] += 1
-    
-    return response
+def track(res):
+    t = (time.time() - request.start_time) * 1000
 
-# Report Route
-@app.route('/report')
-def generate_report():
-    times = stats['response_times']
-    
-    if not times:
-        return "No data available yet"
-    
-    report = f"""
-    ================================
-    LOAD TESTING REPORT
-    ================================
-    Total Requests  : {stats['total_requests']}
-    Total Users     : {len(stats['users'])}
-    Total Errors    : {stats['errors']}
-    --------------------------------
-    Avg Response    : {round(sum(times)/len(times), 2)} ms
-    Max Response    : {max(times)} ms
-    Min Response    : {min(times)} ms
-    --------------------------------
-    Success Rate    : {round((stats['total_requests']-stats['errors'])/stats['total_requests']*100, 2)}%
-    ================================
+    stats["total"] += 1
+    stats["times"].append(t)
+    stats["users"].add(request.remote_addr)
+
+    if res.status_code >= 400:
+        stats["errors"] += 1
+
+    return res
+
+@app.route("/report")
+def report():
+    if not stats["times"]:
+        return "No data yet"
+
+    avg = sum(stats["times"]) / len(stats["times"])
+
+    return f"""
+    <h2>Report</h2>
+    Total Requests: {stats['total']} <br>
+    Users: {len(stats['users'])} <br>
+    Errors: {stats['errors']} <br><br>
+
+    Avg Time: {round(avg, 2)} ms <br>
+    Max Time: {round(max(stats['times']), 2)} ms <br>
+    Min Time: {round(min(stats['times']), 2)} ms <br><br>
+
+    Success Rate: {round((stats['total'] - stats['errors']) / stats['total'] * 100, 2)}%
     """
-    return f"<pre>{report}</pre>"
 
 
 
