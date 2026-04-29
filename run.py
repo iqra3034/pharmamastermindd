@@ -2148,8 +2148,12 @@ def generate_report():
 
 
 
-@app.route('/loaderio-8258b9c0e2f97633980b81e04ffb581a')
+@app.route('/loaderio-8258b9c0e2f97633980b81e04ffb581a.txt')
 def loaderio():
+    return 'loaderio-8258b9c0e2f97633980b81e04ffb581a'
+
+@app.route('/loaderio-8258b9c0e2f97633980b81e04ffb581a')
+def loaderio2():
     return 'loaderio-8258b9c0e2f97633980b81e04ffb581a'
 
 
