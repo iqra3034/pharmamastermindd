@@ -1148,7 +1148,7 @@ def get_customers():
                 })
         
         # Sort customers: purchase_patterns first, then users
-        users_customers.sort(key=lambda x: 0 if x.get('source') == 'purchase_patterns' else 1)
+        users_customers.sort(key=lambda x: 1 if x.get('source') == 'purchase_patterns' else 0)
         
         cur.close()
         return jsonify(users_customers), 200
